@@ -1,5 +1,7 @@
 #include "diagnostic.h"
+#include "ast.h"
 #include "lexer.h"
+#include "parser.h"
 #include "token.h"
 
 #include <fstream>
@@ -10,7 +12,8 @@
 namespace {
 
 void print_usage(std::ostream& out) {
-    out << "usage: snlc --tokens <input.snl>\n";
+    out << "usage: snlc --tokens <input.snl>\n"
+        << "       snlc --ast <input.snl>\n";
 }
 
 bool read_file(const std::string& path, std::string& contents) {
@@ -43,9 +46,8 @@ int main(int argc, char* argv[]) {
     }
 
     const std::string command = argv[1];
-    if (command != "--tokens") {
-        if (command == "--ast" || command == "--semantic" ||
-            command == "--mips" || command == "--all") {
+    if (command != "--tokens" && command != "--ast") {
+        if (command == "--semantic" || command == "--mips" || command == "--all") {
             std::cerr << command << " is not implemented in this stage\n";
             return 2;
         }
@@ -68,13 +70,31 @@ int main(int argc, char* argv[]) {
     snl::Lexer lexer(std::move(source));
     snl::LexerResult result = lexer.scan_tokens();
 
-    for (const snl::Token& token : result.tokens) {
-        print_token(token);
+    if (command == "--tokens") {
+        for (const snl::Token& token : result.tokens) {
+            print_token(token);
+        }
+        for (const snl::Diagnostic& diagnostic : result.diagnostics) {
+            std::cerr << snl::format_diagnostic(diagnostic) << '\n';
+        }
+        return result.diagnostics.empty() ? 0 : 1;
     }
 
-    for (const snl::Diagnostic& diagnostic : result.diagnostics) {
+    if (!result.diagnostics.empty()) {
+        for (const snl::Diagnostic& diagnostic : result.diagnostics) {
+            std::cerr << snl::format_diagnostic(diagnostic) << '\n';
+        }
+        return 1;
+    }
+
+    snl::Parser parser(result.tokens);
+    snl::ParserResult parser_result = parser.parse();
+    if (parser_result.root) {
+        snl::print_ast(*parser_result.root, std::cout);
+    }
+    for (const snl::Diagnostic& diagnostic : parser_result.diagnostics) {
         std::cerr << snl::format_diagnostic(diagnostic) << '\n';
     }
 
-    return result.diagnostics.empty() ? 0 : 1;
+    return parser_result.diagnostics.empty() ? 0 : 1;
 }

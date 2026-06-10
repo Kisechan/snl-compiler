@@ -8,6 +8,8 @@ std::string diagnostic_stage_name(DiagnosticStage stage) {
     switch (stage) {
         case DiagnosticStage::Lexical:
             return "lexical";
+        case DiagnosticStage::Syntax:
+            return "syntax";
         case DiagnosticStage::CommandLine:
             return "command-line";
         case DiagnosticStage::File:

@@ -1,0 +1,33 @@
+program demo
+type intArray = array[1..10] of integer;
+     person = record
+         integer age;
+         array[1..3] of char name;
+     end;
+var integer x,y;
+    char c;
+    intArray nums;
+    person p;
+procedure inc(integer value; var integer result);
+var integer local;
+begin
+    local := value + 1;
+    result := local;
+    return(local)
+end
+begin
+    read(x);
+    y := x * 2 + 1;
+    nums[1] := y;
+    p.age := nums[1];
+    c := 'a';
+    if y < 10 then
+        write(y)
+    else
+        while x < y do
+            x := x + 1
+        endwh
+    fi;
+    inc(x,y);
+    write(p.age)
+end.

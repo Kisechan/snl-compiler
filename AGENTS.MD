@@ -264,3 +264,82 @@ snlc --all input.snl
 - 当前未实现语法分析、AST、语义分析和 MIPS 代码生成。
 - Token 输出格式已固定为 `line column TOKEN value`，后续如需完全模拟课程表格格式，可再增加专门的格式化选项。
 - CMake 本次实际使用 Visual Studio 工具链；如果后续要强制 MinGW，需要重新指定生成器或独立构建目录。
+
+### 2026-06-10 - 第二轮实现：完整递归下降语法分析与 AST 输出
+
+用户请求：
+
+- 按已确认的“完整递归下降语法分析与 AST 输出”计划实现第二轮。
+- 实现 `snlc --ast input.snl`，在词法通过后构造并打印 AST。
+
+预计修改的文件或模块：
+
+- `AGENTS.MD`
+- `CMakeLists.txt`
+- `src/main.cpp`
+- `src/diagnostic.h`
+- `src/diagnostic.cpp`
+- `src/ast.h`
+- `src/ast.cpp`
+- `src/parser.h`
+- `src/parser.cpp`
+- `文档/SNL_PPT_语法产生式摘要.md`
+- `tests/valid/full_syntax.snl`
+- `tests/syntax_errors/missing_end.snl`
+- `tests/syntax_errors/missing_semi.snl`
+- `tests/syntax_errors/bad_statement.snl`
+- `tests/syntax_errors/mismatched_paren.snl`
+
+实现步骤：
+
+- 新增 AST 节点结构和缩进树打印函数。
+- 新增 Parser，按 PPT 文法实现递归下降语法分析。
+- 采用 PPT 规则处理 `return(expr)`。
+- 扩展诊断阶段，增加语法错误诊断。
+- 将 `--ast` 接入命令行入口，词法错误时不进入语法分析。
+- 更新 CMake 构建文件。
+- 整理本轮采用的 PPT 语法产生式摘要。
+- 添加完整语法正常样例和语法错误样例。
+
+测试或验证方式：
+
+- 运行 `cmake --build build`，必要时先运行 `cmake -S . -B build`。
+- 回归运行 `--tokens` 正常样例和现有词法错误样例。
+- 运行 `--ast` 正常样例，确认输出包含 `ProK`、`TypeK`、`VarK`、`ProcDecK`、`StmLK`、`StmtK`、`ExpK`。
+- 运行语法错误样例，确认输出 `syntax error`、行列号、期望内容，且退出码为非 0。
+- 运行 `--semantic`，确认仍返回未实现提示。
+
+重要假设：
+
+- 第二轮不做语义检查；未声明、类型不匹配、参数不匹配留到语义分析阶段。
+- AST 使用更适合 C++ 后续遍历的节点列表结构，不复刻 PDF 的 `child[3] + sibling` 内存结构。
+- Parser 采用手写递归下降，不引入 yacc/bison 或 LL(1) 表驱动。
+- 语法树输出采用稳定文本格式，不新增 JSON 输出。
+- 除非 parser 接入发现 Token 类型缺失，否则不调整词法规则。
+
+实际修改内容：
+
+- 已新增 `ast` 模块，包含 AST 节点类别、源码位置、显示信息、名字列表、子节点列表和缩进树打印函数。
+- 已新增 `parser` 模块，输入 Token 序列并输出 `ParserResult`，支持 PPT 文法中的程序头、类型声明、变量声明、过程声明、参数、程序体、语句列表、if/while/read/write/return/call/assign、表达式、数组访问和记录字段访问。
+- 已按 PPT 规则实现 `return(expr)`，没有采用 PDF 补充资料中的裸 `return`。
+- 已扩展 `DiagnosticStage`，增加 `Syntax`，语法错误输出为统一诊断格式。
+- 已接入 `snlc --ast input.snl`；词法错误存在时只输出词法错误，不进入语法分析。
+- 已更新 CMake，将 `ast.cpp` 和 `parser.cpp` 纳入构建。
+- 已整理 `文档/SNL_PPT_语法产生式摘要.md`，记录本轮采用的 PPT 文法。
+- 已新增完整语法正常样例和四个语法错误样例。
+
+已运行的测试或检查：
+
+- 已运行 `cmake --build build`，构建成功，产物为 `build/Debug/snlc.exe`。
+- 已运行 `build/Debug/snlc.exe --tokens tests/valid/basic_tokens.snl`，退出码为 0。
+- 已回归运行未闭合注释、非法字符、非法字符常量、单独冒号四个词法错误样例，退出码均为 1，并输出词法错误位置和原因。
+- 已运行 `build/Debug/snlc.exe --ast tests/valid/basic_tokens.snl`，退出码为 0，输出 AST。
+- 已运行 `build/Debug/snlc.exe --ast tests/valid/full_syntax.snl`，退出码为 0，输出包含 `ProK`、`TypeK`、`VarK`、`ProcDecK`、`StmLK`、`StmtK`、`ExpK` 的 AST。
+- 已运行 `missing_end`、`missing_semi`、`bad_statement`、`mismatched_paren` 四个语法错误样例，退出码均为 1，并输出 `syntax error`、行列号和期望信息。
+- 已运行 `build/Debug/snlc.exe --semantic tests/valid/basic_tokens.snl`，确认仍返回未实现提示，退出码为 2。
+
+未解决问题或后续工作：
+
+- 当前只做语法结构检查，不做语义检查；未声明变量、类型不兼容、过程实参与形参不匹配等留到第三轮语义分析。
+- 语法错误恢复仍是基础同步策略；例如缺少分号时可能出现少量连锁诊断，但能返回非 0 并指出首个关键语法位置。
+- AST 打印格式已稳定用于演示和测试；后续语义分析可能需要在 AST 节点上补充类型、符号表入口或左值属性。

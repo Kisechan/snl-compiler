@@ -7,9 +7,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_executable(snlc
+    src/ast.cpp
     src/diagnostic.cpp
     src/lexer.cpp
     src/main.cpp
+    src/parser.cpp
     src/token.cpp
 )
 

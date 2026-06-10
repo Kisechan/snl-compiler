@@ -11,6 +11,7 @@ struct SourceLocation {
 
 enum class DiagnosticStage {
     Lexical,
+    Syntax,
     CommandLine,
     File
 };

@@ -1,0 +1,5 @@
+program missingSemi
+var integer x
+begin
+    write(x)
+end.
