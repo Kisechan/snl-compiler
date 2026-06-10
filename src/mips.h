@@ -4,6 +4,7 @@
 #include "diagnostic.h"
 #include "symbol_table.h"
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -31,10 +32,15 @@ private:
     void emit_statement_list(const AstNode& list);
     void emit_statement(const AstNode& statement);
     void emit_expression(const AstNode& expression);
+    bool emit_simplified_expression(const AstNode& expression);
 
     const AstNode* find_main_statement_list(const AstNode& root) const;
     const Symbol* find_global_symbol(const std::string& name) const;
     const Symbol* symbol_for_expression(const AstNode& expression);
+    std::optional<int> constant_value(const AstNode& expression) const;
+    bool same_storage(const AstNode& left, const AstNode& right) const;
+    bool expression_preserves_storage(const AstNode& storage,
+                                      const AstNode& expression) const;
     std::string label_for_symbol(const Symbol& symbol) const;
     std::string new_label(const std::string& prefix);
 

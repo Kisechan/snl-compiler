@@ -3,6 +3,7 @@
 #include "type.h"
 
 #include <cctype>
+#include <optional>
 #include <sstream>
 #include <string>
 
@@ -145,12 +146,17 @@ void MipsGenerator::emit_statement(const AstNode& statement) {
         }
 
         const AstNode& lhs = *statement.children[0];
+        const AstNode& rhs = *statement.children[1];
+        if (expression_preserves_storage(lhs, rhs)) {
+            return;
+        }
+
         const Symbol* symbol = symbol_for_expression(lhs);
         if (!symbol) {
             return;
         }
 
-        emit_expression(*statement.children[1]);
+        emit_expression(rhs);
         emit_line("    sw $t0, " + label_for_symbol(*symbol));
         return;
     }
@@ -200,6 +206,12 @@ void MipsGenerator::emit_statement(const AstNode& statement) {
             return;
         }
 
+        const std::optional<int> condition = constant_value(*statement.children[0]);
+        if (condition) {
+            emit_statement_list(*statement.children[*condition ? 1 : 2]);
+            return;
+        }
+
         const std::string else_label = new_label("else");
         const std::string end_label = new_label("endif");
         emit_expression(*statement.children[0]);
@@ -215,6 +227,11 @@ void MipsGenerator::emit_statement(const AstNode& statement) {
     if (statement.detail == "While") {
         if (statement.children.size() < 2) {
             emit_error(statement.location, "malformed while statement");
+            return;
+        }
+
+        const std::optional<int> condition = constant_value(*statement.children[0]);
+        if (condition && *condition == 0) {
             return;
         }
 
@@ -235,6 +252,12 @@ void MipsGenerator::emit_statement(const AstNode& statement) {
 }
 
 void MipsGenerator::emit_expression(const AstNode& expression) {
+    const std::optional<int> folded = constant_value(expression);
+    if (folded) {
+        emit_line("    li $t0, " + std::to_string(*folded));
+        return;
+    }
+
     if (starts_with(expression.detail, "Const '")) {
         const int value = expression.detail.size() >= 9
                               ? static_cast<unsigned char>(expression.detail[7])
@@ -249,6 +272,10 @@ void MipsGenerator::emit_expression(const AstNode& expression) {
     }
 
     if (starts_with(expression.detail, "Op ")) {
+        if (emit_simplified_expression(expression)) {
+            return;
+        }
+
         if (expression.children.size() < 2) {
             emit_error(expression.location,
                        "operator expression '" + expression.detail + "' is missing operands");
@@ -292,6 +319,61 @@ void MipsGenerator::emit_expression(const AstNode& expression) {
         return;
     }
     emit_line("    lw $t0, " + label_for_symbol(*symbol));
+}
+
+bool MipsGenerator::emit_simplified_expression(const AstNode& expression) {
+    if (!starts_with(expression.detail, "Op ") || expression.children.size() < 2) {
+        return false;
+    }
+
+    const std::string op = expression.detail.substr(3);
+    const AstNode& left = *expression.children[0];
+    const AstNode& right = *expression.children[1];
+    const std::optional<int> left_constant = constant_value(left);
+    const std::optional<int> right_constant = constant_value(right);
+
+    if (op == "+" && right_constant && *right_constant == 0) {
+        emit_expression(left);
+        return true;
+    }
+    if (op == "+" && left_constant && *left_constant == 0) {
+        emit_expression(right);
+        return true;
+    }
+    if (op == "-" && right_constant && *right_constant == 0) {
+        emit_expression(left);
+        return true;
+    }
+    if (op == "*" && right_constant && *right_constant == 1) {
+        emit_expression(left);
+        return true;
+    }
+    if (op == "*" && left_constant && *left_constant == 1) {
+        emit_expression(right);
+        return true;
+    }
+    if (op == "*" &&
+        ((right_constant && *right_constant == 0) ||
+         (left_constant && *left_constant == 0))) {
+        emit_line("    li $t0, 0");
+        return true;
+    }
+    if (op == "/" && right_constant && *right_constant == 1) {
+        emit_expression(left);
+        return true;
+    }
+    if (same_storage(left, right)) {
+        if (op == "=") {
+            emit_line("    li $t0, 1");
+            return true;
+        }
+        if (op == "<") {
+            emit_line("    li $t0, 0");
+            return true;
+        }
+    }
+
+    return false;
 }
 
 const AstNode* MipsGenerator::find_main_statement_list(const AstNode& root) const {
@@ -350,6 +432,104 @@ const Symbol* MipsGenerator::symbol_for_expression(const AstNode& expression) {
         return nullptr;
     }
     return symbol;
+}
+
+std::optional<int> MipsGenerator::constant_value(const AstNode& expression) const {
+    if (starts_with(expression.detail, "Const '")) {
+        if (expression.detail.size() >= 9) {
+            return static_cast<unsigned char>(expression.detail[7]);
+        }
+        return 0;
+    }
+
+    if (starts_with(expression.detail, "Const ")) {
+        try {
+            return std::stoi(expression.detail.substr(6));
+        } catch (...) {
+            return std::nullopt;
+        }
+    }
+
+    if (!starts_with(expression.detail, "Op ") || expression.children.size() < 2) {
+        return std::nullopt;
+    }
+
+    const std::optional<int> left = constant_value(*expression.children[0]);
+    const std::optional<int> right = constant_value(*expression.children[1]);
+    if (!left || !right) {
+        return std::nullopt;
+    }
+
+    const std::string op = expression.detail.substr(3);
+    if (op == "+") {
+        return *left + *right;
+    }
+    if (op == "-") {
+        return *left - *right;
+    }
+    if (op == "*") {
+        return *left * *right;
+    }
+    if (op == "/") {
+        if (*right == 0) {
+            return std::nullopt;
+        }
+        return *left / *right;
+    }
+    if (op == "<") {
+        return *left < *right ? 1 : 0;
+    }
+    if (op == "=") {
+        return *left == *right ? 1 : 0;
+    }
+    return std::nullopt;
+}
+
+bool MipsGenerator::same_storage(const AstNode& left, const AstNode& right) const {
+    const std::vector<std::string> left_words = split_words(left.detail);
+    const std::vector<std::string> right_words = split_words(right.detail);
+    if (left_words.size() < 2 || right_words.size() < 2 ||
+        left_words[1] != "IdV" || right_words[1] != "IdV") {
+        return false;
+    }
+
+    if (left.semantic_symbol_id >= 0 && right.semantic_symbol_id >= 0) {
+        return left.semantic_symbol_id == right.semantic_symbol_id;
+    }
+
+    return left_words.front() == right_words.front();
+}
+
+bool MipsGenerator::expression_preserves_storage(const AstNode& storage,
+                                                 const AstNode& expression) const {
+    if (same_storage(storage, expression)) {
+        return true;
+    }
+
+    if (!starts_with(expression.detail, "Op ") || expression.children.size() < 2) {
+        return false;
+    }
+
+    const std::string op = expression.detail.substr(3);
+    const AstNode& left = *expression.children[0];
+    const AstNode& right = *expression.children[1];
+    const std::optional<int> left_constant = constant_value(left);
+    const std::optional<int> right_constant = constant_value(right);
+
+    if ((op == "+" || op == "-") && right_constant && *right_constant == 0) {
+        return expression_preserves_storage(storage, left);
+    }
+    if (op == "+" && left_constant && *left_constant == 0) {
+        return expression_preserves_storage(storage, right);
+    }
+    if ((op == "*" || op == "/") && right_constant && *right_constant == 1) {
+        return expression_preserves_storage(storage, left);
+    }
+    if (op == "*" && left_constant && *left_constant == 1) {
+        return expression_preserves_storage(storage, right);
+    }
+
+    return false;
 }
 
 std::string MipsGenerator::label_for_symbol(const Symbol& symbol) const {
