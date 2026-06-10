@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SNL Compiler Workbench</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <h1>SNL Compiler Workbench</h1>
+          <p>源码到 Token、AST、语义符号表与 MIPS 的本地演示工作台</p>
+        </div>
+        <div class="pipeline" id="pipeline" aria-label="编译流水线状态"></div>
+      </header>
+
+      <section class="workspace">
+        <aside class="editor-pane" aria-label="SNL 源码编辑区">
+          <div class="pane-toolbar">
+            <label class="sample-picker">
+              <span>示例</span>
+              <select id="sampleSelect" aria-label="选择示例程序"></select>
+            </label>
+            <div class="toolbar-actions">
+              <button class="icon-button primary" id="runButton" type="button" title="运行编译">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+                <span>Run</span>
+              </button>
+              <button class="icon-button" id="resetButton" type="button" title="重置当前示例">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6v6h-6M4 18v-6h6"/><path d="M6.5 9A7 7 0 0 1 18 6l2 2M17.5 15A7 7 0 0 1 6 18l-2-2"/></svg>
+                <span>Reset</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="editor-wrap">
+            <div class="line-gutter" id="lineGutter" aria-hidden="true"></div>
+            <textarea id="sourceInput" spellcheck="false" aria-label="SNL 源码"></textarea>
+            <div class="line-highlight" id="lineHighlight" aria-hidden="true"></div>
+          </div>
+        </aside>
+
+        <section class="output-pane" aria-label="编译输出区">
+          <nav class="tabs" id="tabs" aria-label="输出阶段"></nav>
+          <div class="stage-summary" id="stageSummary"></div>
+          <section class="tab-panel" id="tabPanel" aria-live="polite"></section>
+        </section>
+      </section>
+    </main>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

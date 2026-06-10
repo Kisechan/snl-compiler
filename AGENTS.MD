@@ -501,3 +501,120 @@ snlc --all input.snl
 - 本阶段暂不支持过程声明代码生成、过程调用、参数传递、递归、嵌套过程静态链和 `var` 参数。
 - `read` 当前只支持主程序作用域的 integer 变量；char 输入可在后续阶段按需要补充。
 - `--all` 仍未实现，后续演示整理阶段可接入完整流水线输出。
+
+### 2026-06-10 - 第五轮实现：本地 Web 编译工作台
+
+用户请求：
+
+- 实现 SNL 编译器前端展示方案。
+- 新增本地 Web 工作台，浏览器输入或选择 SNL 示例，Node 本地服务调用现有 `snlc`，展示 Token、AST、语义分析、符号表、MIPS 和错误诊断。
+
+预计修改的文件或模块：
+
+- `AGENTS.MD`
+- `web/server.mjs`
+- `web/public/index.html`
+- `web/public/styles.css`
+- `web/public/app.js`
+
+实现步骤：
+
+- 新增零依赖 Node HTTP 服务，默认监听 `127.0.0.1:5173`。
+- 启动时检查 `build/snlc` 是否存在，缺失时输出 CMake 构建提示。
+- 实现 `GET /api/samples`，读取 `tests/**/*.snl` 并按测试类别分组返回。
+- 实现 `POST /api/compile`，写入临时 `.snl` 文件，依次调用 `--tokens`、`--ast`、`--semantic`、`--mips`。
+- 解析现有诊断文本为 `stage / line / column / message` 结构。
+- 新增深色单页前端，包含源码编辑区、示例选择、运行和重置按钮、流水线状态条、阶段 Tabs、诊断表和源码行高亮。
+- 保持 C++ 编译器 CLI 作为唯一编译器接口。
+
+测试或验证方式：
+
+- 运行 `node web/server.mjs`。
+- 请求 `GET /api/samples`，确认示例按 `valid`、`lexical_errors`、`syntax_errors`、`semantic_errors`、`mips` 分组返回。
+- 请求 `POST /api/compile`，分别覆盖 `valid/full_syntax.snl`、`lexical_errors/invalid_char.snl`、`syntax_errors/missing_semi.snl`、`semantic_errors/assignment_mismatch.snl`、`mips/while_sum.snl`。
+- 浏览器访问 `http://127.0.0.1:5173`，确认示例切换、运行、Tabs、长文本滚动、错误列表和源码高亮可用。
+- 检查浏览器控制台无前端运行错误。
+
+重要假设：
+
+- 演示环境使用本机浏览器访问 `http://127.0.0.1:5173`。
+- 前端采用原生 HTML/CSS/JavaScript 和 Node 内置模块，降低安装成本。
+- `snlc` 已通过 CMake 构建到 `build/snlc`。
+- MIPS 阶段只展示当前后端支持范围内的输出；遇到暂缓特性时展示 codegen 诊断。
+
+实际修改内容：
+
+- 已新增 `web/server.mjs`，使用 Node 内置 HTTP 服务提供静态页面、`GET /api/samples` 和 `POST /api/compile`。
+- 已实现启动前 `build/snlc` 检查，缺失时输出 CMake 构建提示。
+- 已实现样例分组读取，覆盖 `valid`、`lexical_errors`、`syntax_errors`、`semantic_errors`、`mips`。
+- 已实现临时源码写入和分阶段编译调用，阶段顺序为 Lexical、Syntax、Semantic、Codegen；前序阶段失败时后续阶段标记为 skipped。
+- 已实现诊断文本解析，返回 `stage`、`line`、`column`、`message`。
+- 已新增 `web/public/index.html`、`web/public/styles.css`、`web/public/app.js`，实现深色 Web 工作台、源码编辑器、示例选择、运行和重置按钮、流水线状态条、阶段 Tabs、诊断表、源码行高亮和移动端布局。
+
+已运行的测试或检查：
+
+- 已运行 `node --check web/server.mjs`，通过。
+- 已运行 `node --check web/public/app.js`，通过。
+- 已运行 `node web/server.mjs`，服务启动到 `http://127.0.0.1:5173`。
+- 已请求 `GET /api/samples`，确认五类样例均按分组返回。
+- 已通过 `POST /api/compile` 覆盖 `tests/valid/full_syntax.snl`，结果为 Lexical、Syntax、Semantic 成功，Codegen 按当前后端支持范围返回错误诊断。
+- 已通过 `POST /api/compile` 覆盖 `tests/lexical_errors/invalid_char.snl`，结果为 Lexical error，后续阶段 skipped。
+- 已通过 `POST /api/compile` 覆盖 `tests/syntax_errors/missing_semi.snl`，结果为 Syntax error，后续阶段 skipped。
+- 已通过 `POST /api/compile` 覆盖 `tests/semantic_errors/assignment_mismatch.snl`，结果为 Semantic error，Codegen skipped。
+- 已通过 `POST /api/compile` 覆盖 `tests/mips/while_sum.snl`，结果为四阶段 success，并返回 MIPS 汇编。
+- 已使用内置 Playwright 打开页面，选择 `mips/while_sum.snl` 并运行，确认自动切到 MIPS、`.data` 输出可见、浏览器控制台无错误。
+- 已使用内置 Playwright 打开 `lexical_errors/invalid_char.snl` 并运行，确认自动切到 Diagnostics、错误文本可见、源码行高亮定位。
+- 已保存并检查桌面截图 `/private/tmp/snl-workbench-desktop.png` 和移动端截图 `/private/tmp/snl-workbench-mobile.png`。
+- 已运行 `git diff --check`，未发现空白错误。
+
+未解决问题或后续工作：
+
+- Browser 插件工具本轮未暴露可调用接口，浏览器验证采用内置 Playwright 作为 fallback。
+- `full_syntax.snl` 包含数组、记录和过程调用，当前 MIPS 后端会在 Codegen 阶段展示暂缓特性的诊断；这是后端支持范围的现状。
+- `web/` 当前为零依赖原生实现，后续若要增加更强编辑体验，可单独引入 Monaco 或 CodeMirror。
+
+### 2026-06-10 - README 补充：编译与演示功能说明
+
+用户请求：
+
+- 在 README 中写明演示功能开启、关闭和 CMake 编译方法。
+
+预计修改的文件或模块：
+
+- `AGENTS.MD`
+- `README.md`
+
+实现步骤：
+
+- 新增项目 README。
+- 记录 CMake 配置与编译命令。
+- 记录 `snlc` 命令行用法。
+- 记录 Web 演示功能启动命令、访问地址和关闭方式。
+- 说明 `SNLC_BIN`、`HOST`、`PORT` 可选环境变量。
+
+测试或验证方式：
+
+- 确认 README 命令路径与当前项目结构一致。
+- 运行 Markdown 基本内容检查。
+
+重要假设：
+
+- 文档面向 macOS/Linux shell；Windows 用户可按同等 CMake 和 Node 命令替换路径。
+
+实际修改内容：
+
+- 已新增 `README.md`。
+- 已记录快速启动命令：CMake 配置、编译、启动 Web 服务。
+- 已记录命令行编译器的 `--tokens`、`--ast`、`--semantic`、`--mips` 用法。
+- 已记录 Web 演示功能开启方式、访问地址和关闭方式。
+- 已记录 `PORT`、`HOST`、`SNLC_BIN` 可选配置。
+- 已记录测试样例目录含义。
+
+已运行的测试或检查：
+
+- 已读取 `README.md`，确认内容完整。
+- 已检查 `CMakeLists.txt`、`web/server.mjs`、`tests/valid`、`tests/mips` 路径存在。
+
+未解决问题或后续工作：
+
+- 暂无。
