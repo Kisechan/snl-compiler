@@ -1,0 +1,5 @@
+program p
+begin
+    { this comment never ends
+    write(p)
+end.

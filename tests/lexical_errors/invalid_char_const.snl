@@ -1,0 +1,5 @@
+program p
+begin
+    c := 'ab';
+    d := '$';
+end.
