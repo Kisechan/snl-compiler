@@ -1,0 +1,10 @@
+program comparisonMismatch
+var integer x;
+    char c;
+begin
+    if x < c then
+        write(x)
+    else
+        write(x)
+    fi
+end.

@@ -13,6 +13,10 @@ std::unique_ptr<AstNode> make_ast_node(AstNodeKind kind,
         std::move(detail),
         {},
         {},
+        {},
+        false,
+        -1,
+        {},
     });
 }
 

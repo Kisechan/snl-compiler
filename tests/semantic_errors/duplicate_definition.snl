@@ -1,0 +1,6 @@
+program duplicateDefinition
+var integer x;
+    char x;
+begin
+    write(x)
+end.

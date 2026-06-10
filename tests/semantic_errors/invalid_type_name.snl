@@ -1,0 +1,5 @@
+program invalidTypeName
+var missing x;
+begin
+    write(x)
+end.

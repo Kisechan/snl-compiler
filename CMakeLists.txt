@@ -12,7 +12,10 @@ add_executable(snlc
     src/lexer.cpp
     src/main.cpp
     src/parser.cpp
+    src/semantic.cpp
+    src/symbol_table.cpp
     src/token.cpp
+    src/type.cpp
 )
 
 target_include_directories(snlc PRIVATE src)

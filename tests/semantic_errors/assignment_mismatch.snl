@@ -1,0 +1,6 @@
+program assignmentMismatch
+var integer x;
+    char c;
+begin
+    x := c
+end.

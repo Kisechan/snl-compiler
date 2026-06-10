@@ -1,0 +1,8 @@
+program arrayErrors
+var integer x;
+    char c;
+    array[1..3] of integer nums;
+begin
+    nums[c] := 1;
+    x[1] := 2
+end.

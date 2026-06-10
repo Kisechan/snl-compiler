@@ -27,6 +27,10 @@ struct AstNode {
     std::string detail;
     std::vector<std::string> names;
     std::vector<std::unique_ptr<AstNode>> children;
+    std::string semantic_type;
+    bool semantic_is_lvalue = false;
+    int semantic_symbol_id = -1;
+    std::string semantic_var_kind;
 };
 
 std::unique_ptr<AstNode> make_ast_node(AstNodeKind kind,

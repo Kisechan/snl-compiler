@@ -1,0 +1,17 @@
+program semanticNestedOk
+var integer x;
+procedure outer(integer value; var integer result);
+procedure inner();
+begin
+    result := value + 1;
+    return(result)
+end
+begin
+    inner();
+    return(result)
+end
+begin
+    x := 1;
+    outer(x,x);
+    write(x)
+end.

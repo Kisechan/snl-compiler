@@ -343,3 +343,88 @@ snlc --all input.snl
 - 当前只做语法结构检查，不做语义检查；未声明变量、类型不兼容、过程实参与形参不匹配等留到第三轮语义分析。
 - 语法错误恢复仍是基础同步策略；例如缺少分号时可能出现少量连锁诊断，但能返回非 0 并指出首个关键语法位置。
 - AST 打印格式已稳定用于演示和测试；后续语义分析可能需要在 AST 节点上补充类型、符号表入口或左值属性。
+
+### 2026-06-10 - 第三轮实现：语义分析、符号表与后端属性
+
+用户请求：
+
+- 按已确认的“语义分析、符号表与后端属性”计划实现第三轮。
+- 实现 `snlc --semantic input.snl`，流程为 lexer -> parser -> semantic。
+
+预计修改的文件或模块：
+
+- `AGENTS.MD`
+- `CMakeLists.txt`
+- `src/main.cpp`
+- `src/diagnostic.h`
+- `src/diagnostic.cpp`
+- `src/ast.h`
+- `src/type.h`
+- `src/type.cpp`
+- `src/symbol_table.h`
+- `src/symbol_table.cpp`
+- `src/semantic.h`
+- `src/semantic.cpp`
+- `tests/valid/semantic_ok.snl`
+- `tests/semantic_errors/*.snl`
+
+实现步骤：
+
+- 新增类型系统，支持 integer、char、boolean、array、record、alias、procedure、error。
+- 新增分层符号表，支持当前作用域重复定义检查、外层查找、记录字段查找。
+- 在 AST 节点中补充语义属性字段，但保持 `--ast` 文本输出不变。
+- 实现语义分析器，处理类型声明、变量声明、过程声明、参数、语句、表达式和变量访问。
+- 为变量、参数和过程记录 level、offset、size、参数模式、局部数据区大小等后端预留属性。
+- 接入 `snlc --semantic input.snl`，前序词法或语法错误存在时不进入语义分析。
+- 添加合法语义样例和覆盖主要语义错误类别的错误样例。
+
+测试或验证方式：
+
+- 运行 `cmake --build build`。
+- 回归运行 `--tokens`、`--ast` 现有正常样例和错误样例。
+- 运行 `--semantic` 合法样例，确认退出码为 0，并输出符号表摘要。
+- 运行 `--semantic` 语义错误样例，确认退出码为 1，并输出 `semantic error at line:column: ...`。
+- 运行词法错误和语法错误样例，确认 `--semantic` 不进入后续阶段。
+
+重要假设：
+
+- 本轮不生成 IR 或 MIPS 汇编。
+- 后端属性只保证语义阶段可记录和打印，不承诺最终 MIPS 栈帧布局已经定型。
+- 类型别名按声明顺序解析，不支持前向引用。
+- 过程名在分析过程体前登记到当前作用域，允许过程递归调用自身。
+- 同一作用域内类型名、变量名、过程名共享命名空间，重名即重复定义。
+- 后声明的兄弟过程不对前面的过程体可见。
+- `return(expr)` 只检查表达式语义合法；SNL 过程无返回类型，本轮不要求返回值类型匹配。
+- `write(expr)` 接受 integer 和 char。
+
+实际修改内容：
+
+- 已新增 `type` 模块，支持 integer、char、boolean、array、record、alias、procedure、error 类型，包含类型等价判断、别名解析、大小计算和类型格式化。
+- 已新增 `symbol_table` 模块，支持分层作用域、当前作用域重复定义检查、外层查找、稳定 symbol id、level、offset、size、参数模式和过程局部大小。
+- 已在 AST 节点上补充内部语义属性：推导类型、是否左值、绑定符号 id、变量访问类别；未改变 `--ast` 文本输出。
+- 已新增 `semantic` 模块，处理类型声明、变量声明、过程声明、参数登记、语句检查、表达式检查、数组访问、记录字段访问和过程调用检查。
+- 已接入 `snlc --semantic input.snl`；词法或语法阶段有错误时不会进入语义分析。
+- 已更新 CMake，将 `type.cpp`、`symbol_table.cpp`、`semantic.cpp` 纳入构建。
+- 已新增合法语义样例 `semantic_ok.snl`、`semantic_nested_ok.snl`。
+- 已新增语义错误样例，覆盖重复定义、未声明标识符、无效类型名、赋值类型不匹配、比较类型不匹配、数组错误、记录错误和过程调用错误。
+
+已运行的测试或检查：
+
+- 已运行 `cmake --build build`，构建成功，产物为 `build/Debug/snlc.exe`。
+- 已回归运行 `build/Debug/snlc.exe --tokens tests/valid/basic_tokens.snl`，退出码为 0。
+- 已回归运行 `build/Debug/snlc.exe --ast tests/valid/full_syntax.snl`，退出码为 0。
+- 已运行 `build/Debug/snlc.exe --semantic tests/valid/basic_tokens.snl`，退出码为 0。
+- 已运行 `build/Debug/snlc.exe --semantic tests/valid/full_syntax.snl`，退出码为 0。
+- 已运行 `build/Debug/snlc.exe --semantic tests/valid/semantic_ok.snl`，退出码为 0，并输出符号表摘要。
+- 已运行 `build/Debug/snlc.exe --semantic tests/valid/semantic_nested_ok.snl`，退出码为 0，并验证嵌套过程作用域和非局部标识符查找。
+- 已批量运行 `tests/semantic_errors/*.snl`，所有语义错误样例退出码均为 1。
+- 已运行 `build/Debug/snlc.exe --semantic tests/lexical_errors/invalid_char.snl`，确认只输出词法错误并返回 1。
+- 已运行 `build/Debug/snlc.exe --semantic tests/syntax_errors/missing_end.snl`，确认只输出语法错误并返回 1。
+- 已运行 `build/Debug/snlc.exe --mips tests/valid/basic_tokens.snl` 和 `--all`，确认仍返回未实现提示，退出码为 2。
+
+未解决问题或后续工作：
+
+- 本轮不生成 IR 或 MIPS 汇编；下一轮可在现有符号表 level/offset/size 基础上设计 MIPS 后端或先设计 IR。
+- 当前后端属性只作为语义阶段摘要和后端预留信息，最终 MIPS 栈帧布局尚未定型。
+- 由于 PPT 文法中 if/while 条件是 `RelExp`，语法正确的条件天然推导为 boolean；“条件非 boolean”通常会表现为语法错误或比较操作数类型错误。
+- AST 仍主要由 parser 的 `detail` 字符串承载语法细节；语义分析已集中解析这些字符串，后续若要增强维护性，可继续把 AST 节点细化为结构化字段。

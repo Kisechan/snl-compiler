@@ -1,0 +1,10 @@
+program recordErrors
+type rec = record
+    integer value;
+end;
+var integer x;
+    rec item;
+begin
+    x.value := 1;
+    item.missing := 2
+end.

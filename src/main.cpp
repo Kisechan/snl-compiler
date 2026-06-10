@@ -2,6 +2,8 @@
 #include "ast.h"
 #include "lexer.h"
 #include "parser.h"
+#include "semantic.h"
+#include "symbol_table.h"
 #include "token.h"
 
 #include <fstream>
@@ -13,7 +15,8 @@ namespace {
 
 void print_usage(std::ostream& out) {
     out << "usage: snlc --tokens <input.snl>\n"
-        << "       snlc --ast <input.snl>\n";
+        << "       snlc --ast <input.snl>\n"
+        << "       snlc --semantic <input.snl>\n";
 }
 
 bool read_file(const std::string& path, std::string& contents) {
@@ -46,8 +49,8 @@ int main(int argc, char* argv[]) {
     }
 
     const std::string command = argv[1];
-    if (command != "--tokens" && command != "--ast") {
-        if (command == "--semantic" || command == "--mips" || command == "--all") {
+    if (command != "--tokens" && command != "--ast" && command != "--semantic") {
+        if (command == "--mips" || command == "--all") {
             std::cerr << command << " is not implemented in this stage\n";
             return 2;
         }
@@ -90,11 +93,29 @@ int main(int argc, char* argv[]) {
     snl::Parser parser(result.tokens);
     snl::ParserResult parser_result = parser.parse();
     if (parser_result.root) {
-        snl::print_ast(*parser_result.root, std::cout);
+        if (command == "--ast") {
+            snl::print_ast(*parser_result.root, std::cout);
+        }
     }
     for (const snl::Diagnostic& diagnostic : parser_result.diagnostics) {
         std::cerr << snl::format_diagnostic(diagnostic) << '\n';
     }
 
-    return parser_result.diagnostics.empty() ? 0 : 1;
+    if (!parser_result.diagnostics.empty()) {
+        return 1;
+    }
+
+    if (command == "--semantic") {
+        snl::SemanticAnalyzer analyzer;
+        snl::SemanticResult semantic_result = analyzer.analyze(*parser_result.root);
+        for (const snl::Diagnostic& diagnostic : semantic_result.diagnostics) {
+            std::cerr << snl::format_diagnostic(diagnostic) << '\n';
+        }
+        if (!semantic_result.diagnostics.empty()) {
+            return 1;
+        }
+        snl::print_symbol_table_summary(semantic_result.symbols, std::cout);
+    }
+
+    return 0;
 }

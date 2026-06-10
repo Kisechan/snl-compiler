@@ -1,0 +1,12 @@
+program callErrors
+var integer x;
+procedure p(var integer y);
+begin
+    y := y + 1;
+    return(y)
+end
+begin
+    x();
+    p(1);
+    p(x,x)
+end.

@@ -10,6 +10,8 @@ std::string diagnostic_stage_name(DiagnosticStage stage) {
             return "lexical";
         case DiagnosticStage::Syntax:
             return "syntax";
+        case DiagnosticStage::Semantic:
+            return "semantic";
         case DiagnosticStage::CommandLine:
             return "command-line";
         case DiagnosticStage::File:
