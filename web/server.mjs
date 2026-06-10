@@ -81,7 +81,7 @@ async function handleRequest(req, res) {
         message: "Expected JSON body: { source: string }",
       });
     }
-    return sendJson(res, 200, await compileSource(body.source));
+    return sendJson(res, 200, await compileSource(body.source, body.enableCodegen === true));
   }
 
   if (req.method !== "GET" && req.method !== "HEAD") {
@@ -126,7 +126,7 @@ async function loadSamples() {
   return { groups };
 }
 
-async function compileSource(source) {
+async function compileSource(source, enableCodegen) {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), "snl-web-"));
   const sourcePath = path.join(tempRoot, "input.snl");
   const asmPath = path.join(tempRoot, "output.asm");
@@ -137,8 +137,12 @@ async function compileSource(source) {
   try {
     await writeFile(sourcePath, source, "utf8");
 
-    for (let index = 0; index < stageOrder.length; index += 1) {
-      const stage = stageOrder[index];
+    const enabledStages = enableCodegen
+      ? stageOrder
+      : stageOrder.filter((stage) => stage.key !== "mips");
+
+    for (let index = 0; index < enabledStages.length; index += 1) {
+      const stage = enabledStages[index];
       const result = await runCompiler(stage.args(sourcePath, asmPath));
       const stageDiagnostics = parseDiagnostics(result.stderr);
       diagnostics.push(...stageDiagnostics);
@@ -160,7 +164,7 @@ async function compileSource(source) {
       });
 
       if (result.exitCode !== 0) {
-        for (const skipped of stageOrder.slice(index + 1)) {
+        for (const skipped of enabledStages.slice(index + 1)) {
           stages.push({
             key: skipped.key,
             name: skipped.name,

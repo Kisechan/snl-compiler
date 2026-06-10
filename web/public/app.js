@@ -53,7 +53,11 @@ function bindEvents() {
       state.result = null;
       updateLineGutter();
       clearHighlight();
+      if (!isCodegenEnabled()) {
+        state.activeTab = state.activeTab === "mips" ? "tokens" : state.activeTab;
+      }
       renderPipeline();
+      renderTabs();
       renderStageSummary();
       renderPanel();
     }
@@ -142,7 +146,10 @@ async function compileCurrentSource() {
     const response = await fetch("/api/compile", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ source: sourceInput.value }),
+      body: JSON.stringify({
+        source: sourceInput.value,
+        enableCodegen: isCodegenEnabled(),
+      }),
     });
     state.result = await response.json();
     const firstDiagnostic = state.result.diagnostics?.find((item) => item.line);
@@ -152,7 +159,7 @@ async function compileCurrentSource() {
     if (firstDiagnostic) {
       state.activeTab = "diagnostics";
     } else {
-      state.activeTab = state.result.mips ? "mips" : "semantic";
+      state.activeTab = state.result.mips && isCodegenEnabled() ? "mips" : "semantic";
     }
   } catch (error) {
     state.result = {
@@ -178,7 +185,7 @@ function setRunState(isRunning) {
 
 function renderPipeline() {
   const stages = state.result?.stages || [];
-  pipelineEl.innerHTML = pipelineDefs
+  pipelineEl.innerHTML = visiblePipelineDefs()
     .map((def) => {
       const stage = stages.find((item) => item.key === def.key);
       const status = stage?.status || (state.running ? "queued" : "idle");
@@ -193,7 +200,7 @@ function renderPipeline() {
 }
 
 function renderTabs() {
-  tabsEl.innerHTML = tabDefs
+  tabsEl.innerHTML = visibleTabDefs()
     .map((tab) => `
       <button class="tab-button ${tab.id === state.activeTab ? "active" : ""}" type="button" data-tab="${tab.id}">
         ${escapeHtml(tab.label)}
@@ -242,7 +249,11 @@ function renderPanel(message) {
     return;
   }
 
-  const tab = tabDefs.find((item) => item.id === state.activeTab);
+  if (state.activeTab === "mips" && !isCodegenEnabled()) {
+    state.activeTab = "semantic";
+  }
+
+  const tab = visibleTabDefs().find((item) => item.id === state.activeTab);
   const stage = state.result.stages.find((item) => item.key === tab?.stageKey);
   if (!stage) {
     tabPanel.innerHTML = `<div class="empty-state">暂无输出</div>`;
@@ -277,6 +288,22 @@ function renderDiagnostics() {
       }
     });
   });
+}
+
+function visibleTabDefs() {
+  return isCodegenEnabled()
+    ? tabDefs
+    : tabDefs.filter((tab) => tab.id !== "mips");
+}
+
+function visiblePipelineDefs() {
+  return isCodegenEnabled()
+    ? pipelineDefs
+    : pipelineDefs.filter((stage) => stage.key !== "mips");
+}
+
+function isCodegenEnabled() {
+  return state.selectedSample?.groupId === "mips";
 }
 
 function renderDiagnosticRow(diagnostic) {

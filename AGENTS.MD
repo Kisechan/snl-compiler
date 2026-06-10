@@ -193,6 +193,62 @@ snlc --all input.snl
 
 - 暂无。
 
+### 2026-06-10 - Web 演示：MIPS/Codegen 只对 MIPS 示例显示
+
+用户请求：
+
+- 解释 Tokens、AST、Semantic、MIPS、Diagnostics 五个标签页和 Lexical/Syntax/Semantic/Codegen 状态含义。
+- 设置只有 MIPS 生成示例代码有 MIPS、Codegen 检查展示功能。
+
+预计修改的文件或模块：
+
+- `AGENTS.MD`
+- `web/server.mjs`
+- `web/public/app.js`
+
+实现步骤：
+
+- `POST /api/compile` 支持 `enableCodegen` 参数。
+- 服务端只在 `enableCodegen` 为 true 时运行 `snlc --mips`。
+- 前端根据当前示例是否属于 `mips` 分组决定是否显示 MIPS 标签页和 Codegen 状态。
+- 前端运行编译时随请求发送 `enableCodegen`。
+- 普通示例成功后默认切到 Semantic；MIPS 示例成功后默认切到 MIPS。
+
+测试或验证方式：
+
+- 运行 JS 语法检查。
+- API 验证 `valid/full_syntax.snl` 携带 `enableCodegen:false` 时只返回 Lexical、Syntax、Semantic。
+- API 验证 `mips/while_sum.snl` 携带 `enableCodegen:true` 时返回 Codegen 和 MIPS 汇编。
+- 浏览器验证普通示例不显示 MIPS 标签和 Codegen 状态，MIPS 示例显示 MIPS 标签和 Codegen 状态。
+
+重要假设：
+
+- 是否启用 Codegen 由当前选择的示例分组决定；用户在 MIPS 示例基础上编辑源码时仍保留 Codegen 展示。
+
+实际修改内容：
+
+- 已在 `POST /api/compile` 中新增 `enableCodegen` 参数。
+- 已将服务端编译阶段改为按 `enableCodegen` 选择是否运行 `snlc --mips`。
+- 已将前端编译请求改为根据当前示例分组发送 `enableCodegen`。
+- 已将前端 Tabs 改为普通示例显示 Tokens、AST、Semantic、Diagnostics；MIPS 示例显示 Tokens、AST、Semantic、MIPS、Diagnostics。
+- 已将前端流水线状态改为普通示例显示 Lexical、Syntax、Semantic；MIPS 示例显示 Lexical、Syntax、Semantic、Codegen。
+- 已保留 MIPS 示例编辑后的 Codegen 展示能力。
+
+已运行的测试或检查：
+
+- 已运行 `node --check web/server.mjs`，通过。
+- 已运行 `node --check web/public/app.js`，通过。
+- 已重启 `node web/server.mjs`，服务运行在 `http://127.0.0.1:5173`。
+- 已请求 `POST /api/compile`，验证 `tests/valid/full_syntax.snl` 携带 `enableCodegen:false` 时只返回 Lexical、Syntax、Semantic 三个阶段。
+- 已请求 `POST /api/compile`，验证 `tests/mips/while_sum.snl` 携带 `enableCodegen:true` 时返回 Lexical、Syntax、Semantic、Codegen 四个阶段，并返回 MIPS 汇编。
+- 已使用内置 Playwright 验证 `valid/full_syntax.snl` 页面只显示 Tokens、AST、Semantic、Diagnostics，且流水线不显示 Codegen。
+- 已使用内置 Playwright 验证 `mips/while_sum.snl` 页面显示 Tokens、AST、Semantic、MIPS、Diagnostics，且流水线显示 Codegen。
+- 已确认浏览器控制台无错误。
+
+未解决问题或后续工作：
+
+- 暂无。
+
 ### 2026-06-10 - 第一轮实现：词法分析器优先
 
 用户请求：
