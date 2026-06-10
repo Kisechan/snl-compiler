@@ -1,0 +1,6 @@
+program basicWrite
+var integer x;
+begin
+    x := 2 + 3 * 4;
+    write(x)
+end.

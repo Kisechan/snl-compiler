@@ -1,0 +1,11 @@
+program whileSum
+var integer i,sum;
+begin
+    i := 1;
+    sum := 0;
+    while i < 6 do
+        sum := sum + i;
+        i := i + 1
+    endwh;
+    write(sum)
+end.

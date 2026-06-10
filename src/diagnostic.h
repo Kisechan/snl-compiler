@@ -13,6 +13,7 @@ enum class DiagnosticStage {
     Lexical,
     Syntax,
     Semantic,
+    Codegen,
     CommandLine,
     File
 };

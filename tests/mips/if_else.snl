@@ -1,0 +1,11 @@
+program ifElse
+var integer x,y;
+begin
+    x := 3;
+    if x < 5 then
+        y := 10
+    else
+        y := 20
+    fi;
+    write(y)
+end.

@@ -428,3 +428,76 @@ snlc --all input.snl
 - 当前后端属性只作为语义阶段摘要和后端预留信息，最终 MIPS 栈帧布局尚未定型。
 - 由于 PPT 文法中 if/while 条件是 `RelExp`，语法正确的条件天然推导为 boolean；“条件非 boolean”通常会表现为语法错误或比较操作数类型错误。
 - AST 仍主要由 parser 的 `detail` 字符串承载语法细节；语义分析已集中解析这些字符串，后续若要增强维护性，可继续把 AST 节点细化为结构化字段。
+
+### 2026-06-10 - 第四轮实现：MIPS 基础代码生成与 MARS 验证闭环
+
+用户请求：
+
+- 按已确认的“第四阶段：MIPS 基础代码生成与 MARS 验证闭环”计划实现。
+- 实现 `snlc --mips input.snl -o output.asm`，让基础 SNL 程序生成可在 MARS 中运行的 32 位 MIPS 汇编。
+
+预计修改的文件或模块：
+
+- `AGENTS.MD`
+- `CMakeLists.txt`
+- `src/main.cpp`
+- `src/mips.h`
+- `src/mips.cpp`
+- `tests/mips/basic_write.snl`
+- `tests/mips/read_add.snl`
+- `tests/mips/if_else.snl`
+- `tests/mips/while_sum.snl`
+- `tests/mips/char_write.snl`
+
+实现步骤：
+
+- 新增 `mips` 模块，基于语义分析后的 AST 和符号表直接生成 MIPS 汇编。
+- 扩展命令行入口，支持 `snlc --mips input.snl -o output.asm`。
+- 语义前置阶段有错误时不生成汇编。
+- 第一版使用 `.data` 为主程序变量分配空间，生成 `.text`、`.globl main`、`main:` 和退出 syscall。
+- 支持整数/字符常量、变量读写、`+ - * /`、`< =`、赋值、`read`、`write`、`if` 和 `while`。
+- 新增基础 MIPS 样例，用 MARS jar 进行汇编和运行验证。
+
+测试或验证方式：
+
+- 运行 `cmake --build build`。
+- 回归运行 `--tokens`、`--ast`、`--semantic` 现有正常样例。
+- 回归运行现有词法、语法、语义错误样例，确认仍返回非 0。
+- 运行 `--mips` 生成新增 MIPS 样例的汇编。
+- 运行 `java -jar "C:\Users\duckNroast\Desktop\Mars for Compile 2022.jar" nc a ae1 output.asm`。
+- 运行 `java -jar "C:\Users\duckNroast\Desktop\Mars for Compile 2022.jar" nc sm me ae1 se1 100000 output.asm`。
+
+重要假设：
+
+- 第四阶段目标是基础 MIPS 可运行闭环，不一次性完成全部后端。
+- 本阶段不引入独立 IR。
+- MIPS 汇编以 MARS 4.5 兼容为准。
+- 当前语义阶段已有的类型、符号 id、offset、size 足够支撑第一版基础代码生成。
+- 本阶段暂缓数组、记录、过程调用、参数传递、递归、嵌套过程静态链和 `var` 参数。
+
+实际修改内容：
+
+- 已新增 `mips` 模块，直接基于语义分析后的 AST 和符号表生成 MARS 兼容 MIPS 汇编。
+- 已新增 `DiagnosticStage::Codegen`，用于报告本阶段暂不支持的后端结构。
+- 已接入 `snlc --mips input.snl -o output.asm`，执行流程为 lexer -> parser -> semantic -> mips；前序阶段或后端阶段有错误时不写出汇编。
+- 已生成 `.data`、`.text`、`.globl main`、`main:`、程序退出 syscall，并为主程序变量生成全局存储标签。
+- 已支持整数/字符常量、主程序变量读写、`+ - * /`、`< =`、赋值、`read(integer)`、`write(integer)`、`write(char)`、`if` 和 `while`。
+- 已新增五个 MIPS 验证样例：基础写整数、读入后计算、if/else、while 累加和字符输出。
+
+已运行的测试或检查：
+
+- 已运行 `cmake --build build`，构建成功，产物为 `build/Debug/snlc.exe`。
+- 已运行 `snlc --mips` 为 `tests/mips/*.snl` 生成 `build/mips_tests/*.asm`。
+- 已运行 MARS 汇编检查：`java -jar "C:\Users\duckNroast\Desktop\Mars for Compile 2022.jar" nc a ae1 *.asm`，五个样例均通过。
+- 已运行 MARS 模拟执行：`basic_write` 输出 `14`，`char_write` 输出 `A`，`if_else` 输出 `10`，`read_add` 在输入 `7` 时输出 `12`，`while_sum` 输出 `15`。
+- 已回归运行 `--tokens tests/valid/basic_tokens.snl`、`--ast tests/valid/full_syntax.snl`、`--semantic tests/valid/semantic_ok.snl` 和 `--semantic tests/valid/semantic_nested_ok.snl`，均退出码为 0。
+- 已回归运行 `tests/lexical_errors/*.snl`、`tests/syntax_errors/*.snl`、`tests/semantic_errors/*.snl`，均保持非 0 退出码。
+- 已运行 `--mips tests/valid/semantic_ok.snl -o build/mips_tests/semantic_ok_unsupported.asm`，确认数组、记录和过程调用等暂缓特性会输出 `codegen error`，且不写出汇编文件。
+- 已运行 `git diff --check`，未发现空白错误。
+
+未解决问题或后续工作：
+
+- 本阶段暂不支持数组和记录地址计算。
+- 本阶段暂不支持过程声明代码生成、过程调用、参数传递、递归、嵌套过程静态链和 `var` 参数。
+- `read` 当前只支持主程序作用域的 integer 变量；char 输入可在后续阶段按需要补充。
+- `--all` 仍未实现，后续演示整理阶段可接入完整流水线输出。

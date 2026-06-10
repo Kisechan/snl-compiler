@@ -1,6 +1,7 @@
 #include "diagnostic.h"
 #include "ast.h"
 #include "lexer.h"
+#include "mips.h"
 #include "parser.h"
 #include "semantic.h"
 #include "symbol_table.h"
@@ -16,7 +17,8 @@ namespace {
 void print_usage(std::ostream& out) {
     out << "usage: snlc --tokens <input.snl>\n"
         << "       snlc --ast <input.snl>\n"
-        << "       snlc --semantic <input.snl>\n";
+        << "       snlc --semantic <input.snl>\n"
+        << "       snlc --mips <input.snl> -o <output.asm>\n";
 }
 
 bool read_file(const std::string& path, std::string& contents) {
@@ -49,8 +51,9 @@ int main(int argc, char* argv[]) {
     }
 
     const std::string command = argv[1];
-    if (command != "--tokens" && command != "--ast" && command != "--semantic") {
-        if (command == "--mips" || command == "--all") {
+    if (command != "--tokens" && command != "--ast" &&
+        command != "--semantic" && command != "--mips") {
+        if (command == "--all") {
             std::cerr << command << " is not implemented in this stage\n";
             return 2;
         }
@@ -59,14 +62,25 @@ int main(int argc, char* argv[]) {
         return 2;
     }
 
-    if (argc != 3) {
+    std::string input_path;
+    std::string output_path;
+    if (command == "--mips") {
+        if (argc != 5 || std::string(argv[3]) != "-o") {
+            print_usage(std::cerr);
+            return 2;
+        }
+        input_path = argv[2];
+        output_path = argv[4];
+    } else if (argc == 3) {
+        input_path = argv[2];
+    } else {
         print_usage(std::cerr);
         return 2;
     }
 
     std::string source;
-    if (!read_file(argv[2], source)) {
-        std::cerr << "file error: cannot read input file '" << argv[2] << "'\n";
+    if (!read_file(input_path, source)) {
+        std::cerr << "file error: cannot read input file '" << input_path << "'\n";
         return 2;
     }
 
@@ -105,7 +119,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    if (command == "--semantic") {
+    if (command == "--semantic" || command == "--mips") {
         snl::SemanticAnalyzer analyzer;
         snl::SemanticResult semantic_result = analyzer.analyze(*parser_result.root);
         for (const snl::Diagnostic& diagnostic : semantic_result.diagnostics) {
@@ -114,7 +128,27 @@ int main(int argc, char* argv[]) {
         if (!semantic_result.diagnostics.empty()) {
             return 1;
         }
-        snl::print_symbol_table_summary(semantic_result.symbols, std::cout);
+        if (command == "--semantic") {
+            snl::print_symbol_table_summary(semantic_result.symbols, std::cout);
+            return 0;
+        }
+
+        snl::MipsGenerator generator;
+        snl::MipsResult mips_result = generator.generate(*parser_result.root,
+                                                         semantic_result.symbols);
+        for (const snl::Diagnostic& diagnostic : mips_result.diagnostics) {
+            std::cerr << snl::format_diagnostic(diagnostic) << '\n';
+        }
+        if (!mips_result.diagnostics.empty()) {
+            return 1;
+        }
+
+        std::ofstream output(output_path, std::ios::binary);
+        if (!output) {
+            std::cerr << "file error: cannot write output file '" << output_path << "'\n";
+            return 2;
+        }
+        output << mips_result.assembly;
     }
 
     return 0;

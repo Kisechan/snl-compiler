@@ -1,0 +1,7 @@
+program readAdd
+var integer x,y;
+begin
+    read(x);
+    y := x + 5;
+    write(y)
+end.

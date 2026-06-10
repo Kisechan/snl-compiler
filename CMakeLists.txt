@@ -11,6 +11,7 @@ add_executable(snlc
     src/diagnostic.cpp
     src/lexer.cpp
     src/main.cpp
+    src/mips.cpp
     src/parser.cpp
     src/semantic.cpp
     src/symbol_table.cpp
