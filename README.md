@@ -59,16 +59,40 @@ build/Debug/snlc.exe
 ./build/snlc --ast tests/valid/full_syntax.snl
 ```
 
+显式使用递归下降语法分析器：
+
+```bash
+./build/snlc --ast tests/valid/full_syntax.snl --recursive
+```
+
+使用 LL(1) 表驱动语法分析器：
+
+```bash
+./build/snlc --ast tests/valid/full_syntax.snl --ll1
+```
+
 运行语义分析并输出符号表摘要：
 
 ```bash
 ./build/snlc --semantic tests/valid/semantic_ok.snl
 ```
 
+语义分析也可以选择语法分析器：
+
+```bash
+./build/snlc --semantic tests/valid/semantic_ok.snl --ll1
+```
+
 生成 MIPS 汇编：
 
 ```bash
 ./build/snlc --mips tests/mips/while_sum.snl -o build/while_sum.asm
+```
+
+MIPS 生成同样支持 LL(1) 语法分析：
+
+```bash
+./build/snlc --mips tests/mips/while_sum.snl -o build/while_sum.asm --ll1
 ```
 
 ## 开启 Web 演示功能

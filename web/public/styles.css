@@ -170,14 +170,31 @@ textarea {
   border-bottom: 1px solid var(--line);
 }
 
-.sample-picker {
+.toolbar-controls {
   min-width: 0;
   flex: 1;
+  display: flex;
+  gap: 12px;
+  align-items: end;
+}
+
+.sample-picker,
+.parser-picker {
   display: grid;
   gap: 6px;
 }
 
-.sample-picker span {
+.sample-picker {
+  min-width: 180px;
+  flex: 1;
+}
+
+.parser-picker {
+  width: 160px;
+}
+
+.sample-picker span,
+.parser-picker span {
   color: var(--muted);
   font-size: 11px;
   font-weight: 700;
@@ -488,6 +505,15 @@ textarea {
   .pane-toolbar {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .toolbar-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .parser-picker {
+    width: 100%;
   }
 
   .toolbar-actions {

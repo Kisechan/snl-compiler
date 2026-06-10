@@ -1,6 +1,7 @@
 #include "diagnostic.h"
 #include "ast.h"
 #include "lexer.h"
+#include "ll1_parser.h"
 #include "mips.h"
 #include "parser.h"
 #include "semantic.h"
@@ -16,10 +17,15 @@ namespace {
 
 void print_usage(std::ostream& out) {
     out << "usage: snlc --tokens <input.snl>\n"
-        << "       snlc --ast <input.snl>\n"
-        << "       snlc --semantic <input.snl>\n"
-        << "       snlc --mips <input.snl> -o <output.asm>\n";
+        << "       snlc --ast [--recursive|--ll1] <input.snl>\n"
+        << "       snlc --semantic [--recursive|--ll1] <input.snl>\n"
+        << "       snlc --mips [--recursive|--ll1] <input.snl> -o <output.asm>\n";
 }
+
+enum class ParserMode {
+    Recursive,
+    LL1
+};
 
 bool read_file(const std::string& path, std::string& contents) {
     std::ifstream input(path, std::ios::binary);
@@ -64,16 +70,47 @@ int main(int argc, char* argv[]) {
 
     std::string input_path;
     std::string output_path;
+    ParserMode parser_mode = ParserMode::Recursive;
+    bool saw_parser_mode = false;
+
+    for (int index = 2; index < argc; ++index) {
+        const std::string arg = argv[index];
+        if (arg == "--recursive" || arg == "--ll1") {
+            if (saw_parser_mode || command == "--tokens") {
+                print_usage(std::cerr);
+                return 2;
+            }
+            parser_mode = arg == "--ll1" ? ParserMode::LL1 : ParserMode::Recursive;
+            saw_parser_mode = true;
+            continue;
+        }
+        if (arg == "-o") {
+            if (command != "--mips" || index + 1 >= argc || !output_path.empty()) {
+                print_usage(std::cerr);
+                return 2;
+            }
+            output_path = argv[++index];
+            continue;
+        }
+        if (input_path.empty()) {
+            input_path = arg;
+            continue;
+        }
+        print_usage(std::cerr);
+        return 2;
+    }
+
+    if (input_path.empty()) {
+        print_usage(std::cerr);
+        return 2;
+    }
+
     if (command == "--mips") {
-        if (argc != 5 || std::string(argv[3]) != "-o") {
+        if (output_path.empty()) {
             print_usage(std::cerr);
             return 2;
         }
-        input_path = argv[2];
-        output_path = argv[4];
-    } else if (argc == 3) {
-        input_path = argv[2];
-    } else {
+    } else if (!output_path.empty()) {
         print_usage(std::cerr);
         return 2;
     }
@@ -104,8 +141,14 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    snl::Parser parser(result.tokens);
-    snl::ParserResult parser_result = parser.parse();
+    snl::ParserResult parser_result;
+    if (parser_mode == ParserMode::LL1) {
+        snl::LL1Parser parser(result.tokens);
+        parser_result = parser.parse();
+    } else {
+        snl::Parser parser(result.tokens);
+        parser_result = parser.parse();
+    }
     if (parser_result.root) {
         if (command == "--ast") {
             snl::print_ast(*parser_result.root, std::cout);

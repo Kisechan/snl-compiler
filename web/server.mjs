@@ -28,9 +28,9 @@ const sampleGroups = [
 
 const stageOrder = [
   { key: "tokens", name: "Lexical", args: (sourcePath) => ["--tokens", sourcePath] },
-  { key: "ast", name: "Syntax", args: (sourcePath) => ["--ast", sourcePath] },
-  { key: "semantic", name: "Semantic", args: (sourcePath) => ["--semantic", sourcePath] },
-  { key: "mips", name: "Codegen", args: (sourcePath, asmPath) => ["--mips", sourcePath, "-o", asmPath] },
+  { key: "ast", name: "Syntax", args: (sourcePath, _asmPath, parserArg) => ["--ast", parserArg, sourcePath] },
+  { key: "semantic", name: "Semantic", args: (sourcePath, _asmPath, parserArg) => ["--semantic", parserArg, sourcePath] },
+  { key: "mips", name: "Codegen", args: (sourcePath, asmPath, parserArg) => ["--mips", parserArg, sourcePath, "-o", asmPath] },
 ];
 
 const mimeTypes = {
@@ -81,7 +81,12 @@ async function handleRequest(req, res) {
         message: "Expected JSON body: { source: string }",
       });
     }
-    return sendJson(res, 200, await compileSource(body.source, body.enableCodegen === true));
+    const parserMode = body.parserMode === "ll1" ? "ll1" : "recursive";
+    return sendJson(res, 200, await compileSource(
+      body.source,
+      body.enableCodegen === true,
+      parserMode,
+    ));
   }
 
   if (req.method !== "GET" && req.method !== "HEAD") {
@@ -126,13 +131,14 @@ async function loadSamples() {
   return { groups };
 }
 
-async function compileSource(source, enableCodegen) {
+async function compileSource(source, enableCodegen, parserMode) {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), "snl-web-"));
   const sourcePath = path.join(tempRoot, "input.snl");
   const asmPath = path.join(tempRoot, "output.asm");
   const stages = [];
   const diagnostics = [];
   let mips = "";
+  const parserArg = parserMode === "ll1" ? "--ll1" : "--recursive";
 
   try {
     await writeFile(sourcePath, source, "utf8");
@@ -143,7 +149,7 @@ async function compileSource(source, enableCodegen) {
 
     for (let index = 0; index < enabledStages.length; index += 1) {
       const stage = enabledStages[index];
-      const result = await runCompiler(stage.args(sourcePath, asmPath));
+      const result = await runCompiler(stage.args(sourcePath, asmPath, parserArg));
       const stageDiagnostics = parseDiagnostics(result.stderr);
       diagnostics.push(...stageDiagnostics);
 

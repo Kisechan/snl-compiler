@@ -10,6 +10,7 @@ add_executable(snlc
     src/ast.cpp
     src/diagnostic.cpp
     src/lexer.cpp
+    src/ll1_parser.cpp
     src/main.cpp
     src/mips.cpp
     src/parser.cpp

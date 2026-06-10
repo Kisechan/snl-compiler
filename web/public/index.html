@@ -19,10 +19,19 @@
       <section class="workspace">
         <aside class="editor-pane" aria-label="SNL 源码编辑区">
           <div class="pane-toolbar">
-            <label class="sample-picker">
-              <span>示例</span>
-              <select id="sampleSelect" aria-label="选择示例程序"></select>
-            </label>
+            <div class="toolbar-controls">
+              <label class="sample-picker">
+                <span>示例</span>
+                <select id="sampleSelect" aria-label="选择示例程序"></select>
+              </label>
+              <label class="parser-picker">
+                <span>语法分析器</span>
+                <select id="parserSelect" aria-label="选择语法分析器">
+                  <option value="recursive">Recursive</option>
+                  <option value="ll1">LL(1)</option>
+                </select>
+              </label>
+            </div>
             <div class="toolbar-actions">
               <button class="icon-button primary" id="runButton" type="button" title="运行编译">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>

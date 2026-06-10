@@ -56,8 +56,8 @@
 
 已确定的重要规则：
 
-- 语法分析只实现递归下降方法。
-- 不实现 LL(1) 表驱动语法分析，除非用户后续重新要求。
+- 语法分析支持递归下降和 LL(1) 表驱动两种入口。
+- 默认语法分析器为递归下降，命令行可通过 `--ll1` 选择 LL(1) 表驱动语法分析。
 - `return` 按 PPT 规则处理，解析为 `return(expr)`；虽然 PDF 补充材料中提取到的是 `ReturnStm ::= RETURN`。
 - Token 命名保持标准区分：
   - `LPAREN` / `RPAREN` 表示 `(` 和 `)`。
@@ -192,6 +192,145 @@ snlc --all input.snl
 未解决问题或后续工作：
 
 - 暂无。
+
+### 2026-06-10 - LL(1) 批量测试与前端接入
+
+用户请求：
+
+- 重新编译项目。
+- 使用 `tests/` 文件夹下的 SNL 代码测试 LL(1) parser。
+- 将 LL(1) parser 功能接入前端页面。
+
+预计修改的文件或模块：
+
+- `AGENTS.MD`
+- `web/server.mjs`
+- `web/public/index.html`
+- `web/public/app.js`
+- `web/public/styles.css`
+
+实现步骤：
+
+- 重新运行 CMake 构建。
+- 批量运行 `tests/valid`、`tests/syntax_errors`、`tests/semantic_errors`、`tests/mips` 下样例的 LL(1) 路径。
+- 服务端 `POST /api/compile` 接收 parser mode 参数。
+- 前端工具栏增加语法分析器选择控件。
+- 前端运行编译时提交当前 parser mode。
+- 本地启动 Web 工作台并验证页面选择 LL(1) 后各阶段调用成功。
+
+测试或验证方式：
+
+- 运行 `cmake --build build`。
+- 运行 CLI 批量测试脚本覆盖 `tests/` 下样例。
+- 运行 `node --check web/server.mjs` 和 `node --check web/public/app.js`。
+- 启动 `node web/server.mjs`。
+- 通过 HTTP API 测试 `parserMode: "ll1"`。
+- 打开本地页面验证选择控件和 LL(1) 编译结果。
+
+重要假设：
+
+- 前端默认语法分析器保持 `recursive`。
+- LL(1) 模式通过服务端传参调用现有 `snlc --ll1`。
+
+实际修改内容：
+
+- 已在 `web/server.mjs` 中为 `POST /api/compile` 增加 `parserMode` 参数处理。
+- 已将 Syntax、Semantic、Codegen 阶段命令扩展为按 parser mode 传入 `--recursive` 或 `--ll1`。
+- 已在 `web/public/index.html` 的工具栏增加“语法分析器”选择框。
+- 已在 `web/public/app.js` 中保存 parser mode 状态，并随编译请求发送到服务端。
+- 已在阶段摘要中显示当前语法分析器。
+- 已在 `web/public/styles.css` 中调整工具栏布局，支持桌面并排和移动端纵向排列。
+
+已运行的测试或检查：
+
+- 已运行 `cmake --build build`，构建成功。
+- 已批量运行 `tests/valid/*.snl` 的 `--ast --ll1`，均通过。
+- 已批量运行 `tests/syntax_errors/*.snl` 的 `--ast --ll1`，均返回语法错误。
+- 已批量运行 `tests/semantic_errors/*.snl` 的 `--semantic --ll1`，均返回语义错误。
+- 已批量运行 `tests/mips/*.snl` 的 `--mips --ll1`，均生成非空 MIPS 汇编。
+- 已批量运行 `tests/lexical_errors/*.snl` 的 `--ast --ll1`，均返回词法错误。
+- 已运行 `node --check web/server.mjs`，通过。
+- 已运行 `node --check web/public/app.js`，通过。
+- 已运行 `git diff --check`，通过。
+- 已启动 `node web/server.mjs`，访问地址为 `http://127.0.0.1:5173`。
+- 已通过 HTTP API 请求验证 `parserMode: "ll1"`，返回 Lexical、Syntax、Semantic 成功。
+- 已通过浏览器选择 LL(1) 并运行默认 MIPS 示例，返回 Lexical、Syntax、Semantic、Codegen 全部 success，MIPS 输出可见。
+- 已检查浏览器控制台错误日志为空。
+- 已用 390px 宽度检查移动端布局，示例选择、语法分析器选择和运行按钮均可见且在工具栏范围内。
+
+未解决问题或后续工作：
+
+- 暂无。
+
+### 2026-06-10 - 增加 LL(1) 语法分析器选择
+
+用户请求：
+
+- 添加 LL(1) 语法分析功能。
+- 支持用 `--ll1` 或 `--recursive` 选择语法分析器。
+- `--recursive` 作为默认语法分析器。
+
+预计修改的文件或模块：
+
+- `AGENTS.MD`
+- `CMakeLists.txt`
+- `README.md`
+- `src/main.cpp`
+- `src/parser.h`
+- `src/ll1_parser.h`
+- `src/ll1_parser.cpp`
+
+实现步骤：
+
+- 将现有递归下降解析器保留为默认路径。
+- 新增 `LL1Parser`，通过 LL(1) 表驱动方式验证 Token 序列。
+- LL(1) 解析成功后复用现有递归下降解析器构造 AST，保证后续语义分析和 MIPS 生成使用相同 AST 结构。
+- 在命令行入口解析 `--recursive` 和 `--ll1` 可选参数。
+- 更新用法说明和 README。
+
+测试或验证方式：
+
+- 运行 CMake 构建。
+- 运行 `--ast` 默认路径。
+- 运行 `--ast ... --recursive`。
+- 运行 `--ast ... --ll1`。
+- 运行 `--semantic ... --ll1`。
+- 运行语法错误样例，确认 `--ll1` 输出语法错误。
+- 运行 `--mips ... --ll1 -o ...`。
+
+重要假设：
+
+- LL(1) 模式优先用于展示表驱动语法分析流程。
+- AST 构造复用现有递归下降解析器，避免语义分析和代码生成路径重复维护。
+
+实际修改内容：
+
+- 已新增 `src/ll1_parser.h` 和 `src/ll1_parser.cpp`，实现 LL(1) 表驱动语法验证。
+- 已将 `src/ll1_parser.cpp` 加入 CMake 构建。
+- 已在 `src/main.cpp` 中接入 `--recursive` 和 `--ll1` 可选参数。
+- 已保持 `--recursive` 为默认语法分析器。
+- 已支持 `--ast`、`--semantic`、`--mips` 三个阶段选择 LL(1) 语法分析器。
+- 已更新 `README.md` 的命令行示例。
+
+已运行的测试或检查：
+
+- 已运行 `cmake --build build`，构建成功。
+- 已运行 `./build/snlc --ast tests/valid/full_syntax.snl`，退出码为 0。
+- 已运行 `./build/snlc --ast tests/valid/full_syntax.snl --recursive`，退出码为 0。
+- 已运行 `./build/snlc --ast tests/valid/full_syntax.snl --ll1`，退出码为 0。
+- 已运行 `./build/snlc --ast --ll1 tests/valid/basic_tokens.snl`，退出码为 0。
+- 已运行 `./build/snlc --semantic tests/valid/semantic_ok.snl --ll1`，退出码为 0。
+- 已运行 `./build/snlc --semantic --ll1 tests/valid/semantic_nested_ok.snl`，退出码为 0。
+- 已运行 `./build/snlc --ast tests/syntax_errors/missing_semi.snl --ll1`，返回语法错误并退出码为 1。
+- 已运行 `./build/snlc --mips tests/mips/while_sum.snl --ll1 -o build/while_sum_ll1.asm`，退出码为 0，并生成 MIPS 汇编。
+- 已批量运行 `tests/valid/*.snl` 的 `--ast --ll1`，均通过。
+- 已批量运行 `tests/semantic_errors/*.snl` 的 `--semantic --ll1`，均返回语义错误。
+- 已批量运行 `tests/syntax_errors/*.snl` 的 `--ast --ll1`，均返回语法错误。
+- 已运行 `git diff --check`，未发现空白错误。
+
+未解决问题或后续工作：
+
+- LL(1) 模式当前负责表驱动语法验证，AST 构造继续复用递归下降解析器。
 
 ### 2026-06-10 - Web 演示：MIPS/Codegen 只对 MIPS 示例显示
 

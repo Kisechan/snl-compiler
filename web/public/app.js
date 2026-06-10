@@ -1,5 +1,6 @@
 const pipelineEl = document.querySelector("#pipeline");
 const sampleSelect = document.querySelector("#sampleSelect");
+const parserSelect = document.querySelector("#parserSelect");
 const runButton = document.querySelector("#runButton");
 const resetButton = document.querySelector("#resetButton");
 const sourceInput = document.querySelector("#sourceInput");
@@ -30,6 +31,7 @@ const state = {
   activeTab: "tokens",
   result: null,
   running: false,
+  parserMode: "recursive",
 };
 
 init();
@@ -65,6 +67,15 @@ function bindEvents() {
 
   runButton.addEventListener("click", () => {
     compileCurrentSource();
+  });
+
+  parserSelect.addEventListener("change", () => {
+    state.parserMode = parserSelect.value === "ll1" ? "ll1" : "recursive";
+    state.result = null;
+    clearHighlight();
+    renderPipeline();
+    renderStageSummary();
+    renderPanel();
   });
 
   resetButton.addEventListener("click", () => {
@@ -149,6 +160,7 @@ async function compileCurrentSource() {
       body: JSON.stringify({
         source: sourceInput.value,
         enableCodegen: isCodegenEnabled(),
+        parserMode: state.parserMode,
       }),
     });
     state.result = await response.json();
@@ -220,17 +232,23 @@ function renderTabs() {
 function renderStageSummary() {
   const stages = state.result?.stages || [];
   if (!stages.length) {
-    stageSummary.innerHTML = `<span class="summary-chip">等待运行</span>`;
+    stageSummary.innerHTML = `
+      <span class="summary-chip parser-mode">${escapeHtml(parserModeLabel())}</span>
+      <span class="summary-chip">等待运行</span>
+    `;
     return;
   }
 
-  stageSummary.innerHTML = stages
+  stageSummary.innerHTML = `
+    <span class="summary-chip parser-mode">${escapeHtml(parserModeLabel())}</span>
+    ${stages
     .map((stage) => `
       <span class="summary-chip ${escapeHtml(stage.status)}">
         ${escapeHtml(stage.name)} · ${escapeHtml(stage.status)}
       </span>
     `)
-    .join("");
+    .join("")}
+  `;
 }
 
 function renderPanel(message) {
@@ -304,6 +322,10 @@ function visiblePipelineDefs() {
 
 function isCodegenEnabled() {
   return state.selectedSample?.groupId === "mips";
+}
+
+function parserModeLabel() {
+  return state.parserMode === "ll1" ? "Parser · LL(1)" : "Parser · Recursive";
 }
 
 function renderDiagnosticRow(diagnostic) {
