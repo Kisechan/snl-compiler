@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -11,33 +11,41 @@
       <header class="topbar">
         <div>
           <h1>SNL Compiler Workbench</h1>
-          <p>源码到 Token、AST、语义符号表与 MIPS 的本地演示工作台</p>
+          <p>Local SNL pipeline for tokens, AST, semantic symbols, MIPS assembly, and MARS execution.</p>
         </div>
-        <div class="pipeline" id="pipeline" aria-label="编译流水线状态"></div>
+        <div class="pipeline" id="pipeline" aria-label="Compile pipeline status"></div>
       </header>
 
       <section class="workspace">
-        <aside class="editor-pane" aria-label="SNL 源码编辑区">
+        <aside class="editor-pane" aria-label="SNL source editor">
           <div class="pane-toolbar">
             <div class="toolbar-controls">
               <label class="sample-picker">
-                <span>示例</span>
-                <select id="sampleSelect" aria-label="选择示例程序"></select>
+                <span>Sample</span>
+                <select id="sampleSelect" aria-label="Select sample program"></select>
               </label>
               <label class="parser-picker">
-                <span>语法分析器</span>
-                <select id="parserSelect" aria-label="选择语法分析器">
+                <span>Parser</span>
+                <select id="parserSelect" aria-label="Select parser">
                   <option value="recursive">Recursive</option>
                   <option value="ll1">LL(1)</option>
                 </select>
               </label>
+              <label class="mars-path-picker">
+                <span>MARS jar path</span>
+                <input id="marsPathInput" type="text" value="/Users/kisechan/Developer/Projects/snl/Mars for Compile 2022.jar" aria-label="MARS jar path">
+              </label>
+              <label class="run-assembly-toggle">
+                <input id="runAssemblyInput" type="checkbox" checked>
+                <span>Run assembly</span>
+              </label>
             </div>
             <div class="toolbar-actions">
-              <button class="icon-button primary" id="runButton" type="button" title="运行编译">
+              <button class="icon-button primary" id="runButton" type="button" title="Run compile pipeline">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
                 <span>Run</span>
               </button>
-              <button class="icon-button" id="resetButton" type="button" title="重置当前示例">
+              <button class="icon-button" id="resetButton" type="button" title="Reset current sample">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6v6h-6M4 18v-6h6"/><path d="M6.5 9A7 7 0 0 1 18 6l2 2M17.5 15A7 7 0 0 1 6 18l-2-2"/></svg>
                 <span>Reset</span>
               </button>
@@ -46,13 +54,13 @@
 
           <div class="editor-wrap">
             <div class="line-gutter" id="lineGutter" aria-hidden="true"></div>
-            <textarea id="sourceInput" spellcheck="false" aria-label="SNL 源码"></textarea>
+            <textarea id="sourceInput" spellcheck="false" aria-label="SNL source"></textarea>
             <div class="line-highlight" id="lineHighlight" aria-hidden="true"></div>
           </div>
         </aside>
 
-        <section class="output-pane" aria-label="编译输出区">
-          <nav class="tabs" id="tabs" aria-label="输出阶段"></nav>
+        <section class="output-pane" aria-label="Compiler output">
+          <nav class="tabs" id="tabs" aria-label="Output stages"></nav>
           <div class="stage-summary" id="stageSummary"></div>
           <section class="tab-panel" id="tabPanel" aria-live="polite"></section>
         </section>

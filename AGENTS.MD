@@ -193,6 +193,135 @@ snlc --all input.snl
 
 - 暂无。
 
+### 2026-06-10 - MARS 汇编运行测试与前端接入
+
+用户请求：
+
+- 使用 `/Users/kisechan/Developer/Projects/snl/Mars for Compile 2022.jar` 测试运行 MIPS 汇编代码。
+- 在前端接入运行汇编代码功能。
+- 前端可设定 MARS jar 路径。
+
+预计修改的文件或模块：
+
+- `AGENTS.MD`
+- `web/server.mjs`
+- `web/public/index.html`
+- `web/public/app.js`
+- `web/public/styles.css`
+
+实现步骤：
+
+- 确认 Java 和 MARS jar 可运行。
+- 用 `snlc --mips` 生成测试汇编。
+- 调用 MARS jar 运行生成的汇编，确认输出。
+- 服务端 `POST /api/compile` 支持 `runAssembly` 和 `marsPath`。
+- 前端工具栏增加 MARS jar 路径输入和运行汇编开关。
+- 输出区域增加 Run 标签页，展示汇编运行 stdout/stderr。
+
+测试或验证方式：
+
+- 运行 CMake 构建。
+- 运行 MARS 命令行测试。
+- 运行 `node --check web/server.mjs` 和 `node --check web/public/app.js`。
+- 通过 HTTP API 测试 `runAssembly: true`。
+- 通过浏览器验证 MIPS 示例可生成并运行汇编。
+
+重要假设：
+
+- MARS 以 `java -jar <marsPath> nc <asmPath>` 的命令行形式运行。
+- 汇编运行只在 MIPS 示例启用。
+
+实际修改内容：
+
+- 已在 `web/server.mjs` 中增加 MARS 运行阶段。
+- 已支持 `runAssembly` 和 `marsPath` 请求参数。
+- 已使用 `java -jar <marsPath> nc <asmPath>` 运行生成的汇编。
+- 已在服务端返回 `runOutput`，并把 Run 阶段追加到 stages。
+- 已在 `web/public/index.html` 增加 MARS jar 路径输入和“运行汇编”开关。
+- 已在 `web/public/app.js` 增加 Run 标签页、Run 流水线阶段、请求参数和默认结果页切换。
+- 已在 `web/public/styles.css` 调整工具栏控件布局，支持新增路径输入和移动端显示。
+- 已更新 `README.md`，说明前端可选择语法分析器、填写 MARS jar 路径并查看 Run 输出。
+
+已运行的测试或检查：
+
+- 已运行 `cmake --build build`，构建成功。
+- 已运行 `./build/snlc --mips tests/mips/while_sum.snl --ll1 -o build/mars_while_sum.asm`，生成汇编成功。
+- 已运行 `/opt/homebrew/opt/openjdk/bin/java -jar "/Users/kisechan/Developer/Projects/snl/Mars for Compile 2022.jar" nc build/mars_while_sum.asm`，输出 `15`。
+- 已运行 `node --check web/server.mjs`，通过。
+- 已运行 `node --check web/public/app.js`，通过。
+- 已运行 `git diff --check`，通过。
+- 已启动新版 Web 工作台到 `http://127.0.0.1:5174`。
+- 已通过 HTTP API 验证 `runAssembly: true` 和 MARS jar 路径，Run 阶段成功输出 `15`。
+- 已通过浏览器选择 LL(1)、填写 MARS jar 路径并运行默认 MIPS 示例，Run 标签页显示 `15`。
+- 已检查浏览器控制台错误日志为空。
+- 已用 390px 宽度检查移动端布局，新增控件和 Run 按钮均可见且在工具栏范围内。
+
+未解决问题或后续工作：
+
+- 当前 Java 默认路径为 `/opt/homebrew/opt/openjdk/bin/java`，可通过 `JAVA_BIN` 环境变量覆盖。
+
+### 2026-06-10 - Workbench 英文化、流水线布局调整与 Run 输出修复
+
+用户请求：
+
+- 将编译流水线状态放到 `SNL Compiler Workbench` 标题下方，占一整行。
+- 将所有中文提示和页面文字改成英文版本，并让界面更协调。
+- Debug 当前 Run 标签显示“暂无输出”的问题。
+
+预计修改的文件或模块：
+
+- `AGENTS.MD`
+- `web/server.mjs`
+- `web/public/index.html`
+- `web/public/app.js`
+- `web/public/styles.css`
+
+实现步骤：
+
+- 将 header 布局改为标题区在上、流水线状态条在下。
+- 将 HTML、JS、服务端样例分组标签中的中文文案改为英文。
+- 调整 pipeline 和工具栏样式，使五阶段状态在整行内协调显示。
+- 修复 Run 标签输出：优先读取 Run stage，缺失时使用 `runOutput` 兜底。
+- 用浏览器验证 MIPS 示例运行后 Run 标签显示 MARS 输出。
+
+测试或验证方式：
+
+- 运行 `node --check web/server.mjs`。
+- 运行 `node --check web/public/app.js`。
+- 运行 `git diff --check`。
+- 启动 Web 服务并通过浏览器验证桌面和移动端布局。
+- 点击 Run，确认 Run 标签显示 MARS 输出。
+
+重要假设：
+
+- 页面面向英文演示环境。
+- Run 输出来自 MARS stdout/stderr，空输出时显示英文空状态。
+
+实际修改内容：
+
+- 已将 header 改为单列布局：标题和说明在上，pipeline 状态条在下方独占整行。
+- 已将前端页面文案、aria label、空状态、错误提示、样例分组标签改为英文。
+- 已将 pipeline 调整为整行自适应布局，五阶段状态可在桌面横向排列。
+- 已修复 Run 面板输出逻辑：优先显示 Run stage 输出，缺失 stage 时用 `runOutput` 兜底。
+- 已调整桌面和移动端工具栏布局，MARS 路径输入不再挤压或横向溢出。
+
+已运行的测试或检查：
+
+- 已运行 `node --check web/server.mjs`，通过。
+- 已运行 `node --check web/public/app.js`，通过。
+- 已运行 `git diff --check`，通过。
+- 已启动当前版本 Web 工作台到 `http://127.0.0.1:5175`。
+- 已通过浏览器验证 pipeline 位于标题下方并占整行。
+- 已通过浏览器验证页面可见文本无中文残留。
+- 已通过浏览器选择 LL(1) 并运行默认 MIPS 示例，Run 标签显示 `15`。
+- 已确认 Run 面板不再显示 `No output available.`。
+- 已检查浏览器 console error/warn 日志为空。
+- 已用 390px 宽度验证移动端布局，MARS 路径输入、运行开关和按钮均可见且无横向溢出。
+
+未解决问题或后续工作：
+
+- 暂无。
+
 ### 2026-06-10 - LL(1) 批量测试与前端接入
 
 用户请求：

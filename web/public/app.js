@@ -1,6 +1,8 @@
 const pipelineEl = document.querySelector("#pipeline");
 const sampleSelect = document.querySelector("#sampleSelect");
 const parserSelect = document.querySelector("#parserSelect");
+const marsPathInput = document.querySelector("#marsPathInput");
+const runAssemblyInput = document.querySelector("#runAssemblyInput");
 const runButton = document.querySelector("#runButton");
 const resetButton = document.querySelector("#resetButton");
 const sourceInput = document.querySelector("#sourceInput");
@@ -15,6 +17,7 @@ const tabDefs = [
   { id: "ast", label: "AST", stageKey: "ast" },
   { id: "semantic", label: "Semantic", stageKey: "semantic" },
   { id: "mips", label: "MIPS", stageKey: "mips" },
+  { id: "run", label: "Run", stageKey: "run" },
   { id: "diagnostics", label: "Diagnostics" },
 ];
 
@@ -23,6 +26,7 @@ const pipelineDefs = [
   { key: "ast", label: "Syntax" },
   { key: "semantic", label: "Semantic" },
   { key: "mips", label: "Codegen" },
+  { key: "run", label: "Run" },
 ];
 
 const state = {
@@ -56,7 +60,9 @@ function bindEvents() {
       updateLineGutter();
       clearHighlight();
       if (!isCodegenEnabled()) {
-        state.activeTab = state.activeTab === "mips" ? "tokens" : state.activeTab;
+        state.activeTab = state.activeTab === "mips" || state.activeTab === "run"
+          ? "tokens"
+          : state.activeTab;
       }
       renderPipeline();
       renderTabs();
@@ -76,6 +82,27 @@ function bindEvents() {
     renderPipeline();
     renderStageSummary();
     renderPanel();
+  });
+
+  runAssemblyInput.addEventListener("change", () => {
+    state.result = null;
+    clearHighlight();
+    if (!isAssemblyRunEnabled() && state.activeTab === "run") {
+      state.activeTab = "mips";
+    }
+    renderPipeline();
+    renderTabs();
+    renderStageSummary();
+    renderPanel();
+  });
+
+  marsPathInput.addEventListener("input", () => {
+    if (state.result) {
+      state.result = null;
+      renderPipeline();
+      renderStageSummary();
+      renderPanel();
+    }
   });
 
   resetButton.addEventListener("click", () => {
@@ -125,7 +152,7 @@ async function loadSamples() {
       updateLineGutter();
     }
   } catch (error) {
-    tabPanel.innerHTML = `<div class="empty-state">示例加载失败：${escapeHtml(error.message)}</div>`;
+    tabPanel.innerHTML = `<div class="empty-state">Failed to load samples: ${escapeHtml(error.message)}</div>`;
   }
 }
 
@@ -151,7 +178,7 @@ async function compileCurrentSource() {
   setRunState(true);
   renderPipeline();
   renderStageSummary();
-  renderPanel("编译运行中...");
+  renderPanel("Running compile pipeline...");
 
   try {
     const response = await fetch("/api/compile", {
@@ -161,6 +188,8 @@ async function compileCurrentSource() {
         source: sourceInput.value,
         enableCodegen: isCodegenEnabled(),
         parserMode: state.parserMode,
+        runAssembly: isAssemblyRunEnabled(),
+        marsPath: marsPathInput.value,
       }),
     });
     state.result = await response.json();
@@ -171,7 +200,8 @@ async function compileCurrentSource() {
     if (firstDiagnostic) {
       state.activeTab = "diagnostics";
     } else {
-      state.activeTab = state.result.mips && isCodegenEnabled() ? "mips" : "semantic";
+      const runStage = state.result.stages?.find((item) => item.key === "run");
+      state.activeTab = runStage ? "run" : (state.result.mips && isCodegenEnabled() ? "mips" : "semantic");
     }
   } catch (error) {
     state.result = {
@@ -234,7 +264,7 @@ function renderStageSummary() {
   if (!stages.length) {
     stageSummary.innerHTML = `
       <span class="summary-chip parser-mode">${escapeHtml(parserModeLabel())}</span>
-      <span class="summary-chip">等待运行</span>
+      <span class="summary-chip">Ready</span>
     `;
     return;
   }
@@ -258,7 +288,7 @@ function renderPanel(message) {
   }
 
   if (!state.result) {
-    tabPanel.innerHTML = `<div class="empty-state">选择示例或输入源码后点击 Run</div>`;
+    tabPanel.innerHTML = `<div class="empty-state">Select a sample or edit source, then click Run.</div>`;
     return;
   }
 
@@ -273,22 +303,28 @@ function renderPanel(message) {
 
   const tab = visibleTabDefs().find((item) => item.id === state.activeTab);
   const stage = state.result.stages.find((item) => item.key === tab?.stageKey);
+  if (state.activeTab === "run" && !stage && state.result.runOutput) {
+    tabPanel.innerHTML = `<pre class="output-block">${escapeHtml(state.result.runOutput)}</pre>`;
+    return;
+  }
   if (!stage) {
-    tabPanel.innerHTML = `<div class="empty-state">暂无输出</div>`;
+    tabPanel.innerHTML = `<div class="empty-state">No output available.</div>`;
     return;
   }
 
-  const output = [stage.stdout, stage.stderr].filter(Boolean).join("\n");
+  const output = state.activeTab === "run" && state.result.runOutput
+    ? state.result.runOutput
+    : [stage.stdout, stage.stderr].filter(Boolean).join("\n");
   tabPanel.innerHTML = output
     ? `<pre class="output-block">${escapeHtml(output)}</pre>`
-    : `<div class="empty-state">${escapeHtml(stage.name)} 没有文本输出</div>`;
+    : `<div class="empty-state">${escapeHtml(stage.name)} produced no text output.</div>`;
 }
 
 function renderDiagnostics() {
   const diagnostics = state.result?.diagnostics || [];
 
   if (!diagnostics.length) {
-    tabPanel.innerHTML = `<div class="empty-state">本次编译没有诊断信息</div>`;
+    tabPanel.innerHTML = `<div class="empty-state">No diagnostics for this run.</div>`;
     return;
   }
 
@@ -309,19 +345,35 @@ function renderDiagnostics() {
 }
 
 function visibleTabDefs() {
-  return isCodegenEnabled()
-    ? tabDefs
-    : tabDefs.filter((tab) => tab.id !== "mips");
+  return tabDefs.filter((tab) => {
+    if (tab.id === "mips") {
+      return isCodegenEnabled();
+    }
+    if (tab.id === "run") {
+      return isAssemblyRunEnabled();
+    }
+    return true;
+  });
 }
 
 function visiblePipelineDefs() {
-  return isCodegenEnabled()
-    ? pipelineDefs
-    : pipelineDefs.filter((stage) => stage.key !== "mips");
+  return pipelineDefs.filter((stage) => {
+    if (stage.key === "mips") {
+      return isCodegenEnabled();
+    }
+    if (stage.key === "run") {
+      return isAssemblyRunEnabled();
+    }
+    return true;
+  });
 }
 
 function isCodegenEnabled() {
   return state.selectedSample?.groupId === "mips";
+}
+
+function isAssemblyRunEnabled() {
+  return isCodegenEnabled() && runAssemblyInput.checked;
 }
 
 function parserModeLabel() {
