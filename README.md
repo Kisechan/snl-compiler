@@ -126,7 +126,7 @@ http://127.0.0.1:5173
 
 - 选择 `tests/` 下的 SNL 示例程序。
 - 选择递归下降或 LL(1) 语法分析器。
-- 为 MIPS 示例填写 MARS jar 路径，并选择是否运行生成的汇编。
+- 为 MIPS 示例填写 MARS jar 路径和 assembly stdin input，并选择是否运行生成的汇编。
 - 编辑源码后点击 `Run`。
 - 查看 Lexical、Syntax、Semantic、Codegen、Run 阶段状态。
 - 在 Tokens、AST、Semantic、MIPS、Run、Diagnostics 标签页查看输出。

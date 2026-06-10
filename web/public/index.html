@@ -31,11 +31,15 @@
                   <option value="ll1">LL(1)</option>
                 </select>
               </label>
-              <label class="mars-path-picker">
+              <label class="mars-path-picker mips-option" hidden>
                 <span>MARS jar path</span>
-                <input id="marsPathInput" type="text" value="/Users/kisechan/Developer/Projects/snl/Mars for Compile 2022.jar" aria-label="MARS jar path">
+                <input id="marsPathInput" type="text" value="" aria-label="MARS jar path">
               </label>
-              <label class="run-assembly-toggle">
+              <label class="assembly-input-picker mips-option" hidden>
+                <span>Assembly input</span>
+                <textarea id="assemblyInput" class="assembly-input" spellcheck="false" aria-label="Assembly stdin input"></textarea>
+              </label>
+              <label class="run-assembly-toggle mips-option" hidden>
                 <input id="runAssemblyInput" type="checkbox" checked>
                 <span>Run assembly</span>
               </label>

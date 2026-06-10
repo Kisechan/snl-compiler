@@ -182,7 +182,8 @@ textarea {
 
 .sample-picker,
 .parser-picker,
-.mars-path-picker {
+.mars-path-picker,
+.assembly-input-picker {
   display: grid;
   gap: 6px;
 }
@@ -199,6 +200,15 @@ textarea {
 .mars-path-picker {
   min-width: 260px;
   flex: 1 0 100%;
+}
+
+.assembly-input-picker {
+  min-width: 260px;
+  flex: 1 0 100%;
+}
+
+.mips-option[hidden] {
+  display: none;
 }
 
 .run-assembly-toggle {
@@ -220,7 +230,8 @@ textarea {
 
 .sample-picker span,
 .parser-picker span,
-.mars-path-picker span {
+.mars-path-picker span,
+.assembly-input-picker span {
   color: var(--muted);
   font-size: 11px;
   font-weight: 700;
@@ -249,8 +260,25 @@ input[type="text"] {
   outline: none;
 }
 
+.assembly-input {
+  width: 100%;
+  height: 64px;
+  min-height: 64px;
+  resize: vertical;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  color: var(--code);
+  background: var(--surface);
+  padding: 10px 12px;
+  outline: none;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 select:focus,
 input[type="text"]:focus,
+.assembly-input:focus,
 textarea:focus,
 button:focus-visible {
   border-color: var(--accent);
@@ -331,7 +359,7 @@ button:focus-visible {
   white-space: pre;
 }
 
-textarea {
+#sourceInput {
   position: relative;
   z-index: 2;
   width: 100%;
@@ -557,6 +585,12 @@ textarea {
   }
 
   .mars-path-picker {
+    flex: 0 0 auto;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .assembly-input-picker {
     flex: 0 0 auto;
     min-width: 0;
     width: 100%;

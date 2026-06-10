@@ -193,6 +193,85 @@ snlc --all input.snl
 
 - 暂无。
 
+### 2026-06-10 - MARS 控件默认值、默认样例、端口清理与 read_add 输入
+
+用户请求：
+
+- 将默认 MARS jar 路径改为空字符串。
+- 非 MIPS samples 隐藏 MARS 路径、运行汇编勾选框等控件。
+- 默认 sample 改为 `valid/basic_tokens.snl`。
+- 右侧默认标签页改为 Tokens。
+- 后续开发默认使用 5173 端口。
+- 找到并关闭 5173 到 5175 的运行进程。
+- 修复 `read_add` 示例运行 MARS 时缺少输入导致异常的问题。
+- 为输入数据增加专门选项框。
+
+预计修改的文件或模块：
+
+- `AGENTS.MD`
+- `web/server.mjs`
+- `web/public/index.html`
+- `web/public/app.js`
+- `web/public/styles.css`
+
+实现步骤：
+
+- 关闭监听 5173、5174、5175 的旧 Node 服务进程。
+- 前端默认选择 `valid/basic_tokens.snl`，默认 active tab 为 Tokens。
+- MARS 路径输入默认空字符串。
+- 非 MIPS 样例隐藏 MARS 路径、输入数据和运行汇编控件。
+- 增加 MARS stdin 输入框，并在 `read_add` 示例默认填入整数输入。
+- 服务端运行 MARS 时把输入数据写入子进程 stdin。
+- MARS 路径为空且用户启用运行汇编时返回明确 Run 阶段错误。
+- 使用 5173 启动并验证页面、API、Run 输出。
+
+测试或验证方式：
+
+- 运行端口清理检查。
+- 运行 `node --check web/server.mjs`。
+- 运行 `node --check web/public/app.js`。
+- 运行 `git diff --check`。
+- 通过 API 测试 `read_add` 输入数据运行结果。
+- 通过浏览器验证默认 sample、默认 Tokens tab、MIPS 控件显隐和 Run 输出。
+
+重要假设：
+
+- `read_add` 的输入数据用单个整数即可，默认使用 `7`，预期输出 `12`。
+- MARS stdin 使用换行分隔输入值。
+
+实际修改内容：
+
+- 已关闭 5173、5174、5175 上的旧 Node 服务进程。
+- 已将 Web 工作台重新启动到默认端口 `http://127.0.0.1:5173`。
+- 已将默认 sample 改为 `valid/basic_tokens.snl`。
+- 已保持右侧默认标签页为 Tokens。
+- 已将 MARS jar 路径默认值改为空字符串。
+- 已将 MARS jar 路径、assembly input、Run assembly 控件设为 MIPS-only。
+- 已为 `mips/read_add.snl` 默认填入 assembly input `7`。
+- 已将服务端 MARS 运行改为通过 stdin 写入 assembly input。
+- 已在 MARS 路径为空且启用 Run assembly 时返回明确 Run 阶段错误。
+- 已更新 README 中 MARS 运行说明。
+
+已运行的测试或检查：
+
+- 已运行端口检查，确认 5173、5174、5175 旧进程已关闭。
+- 已运行 `node --check web/server.mjs`，通过。
+- 已运行 `node --check web/public/app.js`，通过。
+- 已运行 `git diff --check`，通过。
+- 已通过 API 验证 `read_add` 携带 `assemblyInput: "7"` 和 MARS jar 路径时，Run 阶段输出 `12`。
+- 已通过 API 验证 MARS jar 路径为空时，Run 阶段输出 `file error: MARS jar path is required`。
+- 已通过浏览器验证默认 sample 为 `valid/basic_tokens.snl`。
+- 已通过浏览器验证默认 active tab 为 Tokens。
+- 已通过浏览器验证非 MIPS sample 隐藏 MARS 路径、assembly input 和 Run assembly 控件。
+- 已通过浏览器验证切换到 `mips/read_add.snl` 后 MIPS-only 控件显示，MARS 路径为空，assembly input 默认 `7`。
+- 已通过浏览器 390px 宽度检查移动端默认状态，无横向溢出。
+- 已检查浏览器 console error/warn 日志为空。
+- 已确认当前监听端口只有 5173。
+
+未解决问题或后续工作：
+
+- 浏览器自动化运行时无法通过 Playwright `fill/type` 输入长路径，实际运行链路已通过 API 覆盖，页面控件显隐和默认值已通过浏览器覆盖。
+
 ### 2026-06-10 - MARS 汇编运行测试与前端接入
 
 用户请求：

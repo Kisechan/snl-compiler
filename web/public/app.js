@@ -2,6 +2,7 @@ const pipelineEl = document.querySelector("#pipeline");
 const sampleSelect = document.querySelector("#sampleSelect");
 const parserSelect = document.querySelector("#parserSelect");
 const marsPathInput = document.querySelector("#marsPathInput");
+const assemblyInput = document.querySelector("#assemblyInput");
 const runAssemblyInput = document.querySelector("#runAssemblyInput");
 const runButton = document.querySelector("#runButton");
 const resetButton = document.querySelector("#resetButton");
@@ -57,6 +58,7 @@ function bindEvents() {
       state.selectedSample = sample;
       sourceInput.value = sample.content;
       state.result = null;
+      assemblyInput.value = defaultAssemblyInputForSample(sample);
       updateLineGutter();
       clearHighlight();
       if (!isCodegenEnabled()) {
@@ -68,6 +70,7 @@ function bindEvents() {
       renderTabs();
       renderStageSummary();
       renderPanel();
+      updateMipsOptionsVisibility();
     }
   });
 
@@ -105,9 +108,19 @@ function bindEvents() {
     }
   });
 
+  assemblyInput.addEventListener("input", () => {
+    if (state.result) {
+      state.result = null;
+      renderPipeline();
+      renderStageSummary();
+      renderPanel();
+    }
+  });
+
   resetButton.addEventListener("click", () => {
     if (state.selectedSample) {
       sourceInput.value = state.selectedSample.content;
+      assemblyInput.value = defaultAssemblyInputForSample(state.selectedSample);
       updateLineGutter();
       clearHighlight();
     }
@@ -141,15 +154,23 @@ async function loadSamples() {
     renderSampleSelect(groups);
 
     const defaultSample =
+      state.samples.find((item) => item.id === "valid/basic_tokens.snl") ||
       state.samples.find((item) => item.id === "mips/while_sum.snl") ||
       state.samples.find((item) => item.id === "valid/full_syntax.snl") ||
       state.samples[0];
 
     if (defaultSample) {
       state.selectedSample = defaultSample;
+      state.activeTab = "tokens";
       sampleSelect.value = defaultSample.id;
       sourceInput.value = defaultSample.content;
+      assemblyInput.value = defaultAssemblyInputForSample(defaultSample);
       updateLineGutter();
+      updateMipsOptionsVisibility();
+      renderPipeline();
+      renderTabs();
+      renderStageSummary();
+      renderPanel();
     }
   } catch (error) {
     tabPanel.innerHTML = `<div class="empty-state">Failed to load samples: ${escapeHtml(error.message)}</div>`;
@@ -190,6 +211,7 @@ async function compileCurrentSource() {
         parserMode: state.parserMode,
         runAssembly: isAssemblyRunEnabled(),
         marsPath: marsPathInput.value,
+        assemblyInput: assemblyInput.value,
       }),
     });
     state.result = await response.json();
@@ -378,6 +400,17 @@ function isAssemblyRunEnabled() {
 
 function parserModeLabel() {
   return state.parserMode === "ll1" ? "Parser · LL(1)" : "Parser · Recursive";
+}
+
+function defaultAssemblyInputForSample(sample) {
+  return sample?.id === "mips/read_add.snl" ? "7" : "";
+}
+
+function updateMipsOptionsVisibility() {
+  const showMipsOptions = isCodegenEnabled();
+  document.querySelectorAll(".mips-option").forEach((element) => {
+    element.hidden = !showMipsOptions;
+  });
 }
 
 function renderDiagnosticRow(diagnostic) {

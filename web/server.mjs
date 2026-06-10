@@ -14,7 +14,6 @@ const defaultCompilerPath = process.platform === "win32"
   ? path.join(projectRoot, "build", "Debug", "snlc.exe")
   : path.join(projectRoot, "build", "snlc");
 const compilerPath = process.env.SNLC_BIN || defaultCompilerPath;
-const defaultMarsPath = path.resolve(projectRoot, "..", "Mars for Compile 2022.jar");
 const javaBin = process.env.JAVA_BIN || "/opt/homebrew/opt/openjdk/bin/java";
 const host = process.env.HOST || "127.0.0.1";
 const port = Number(process.env.PORT || 5173);
@@ -84,15 +83,15 @@ async function handleRequest(req, res) {
       });
     }
     const parserMode = body.parserMode === "ll1" ? "ll1" : "recursive";
-    const marsPath = typeof body.marsPath === "string" && body.marsPath.trim()
-      ? body.marsPath.trim()
-      : defaultMarsPath;
+    const marsPath = typeof body.marsPath === "string" ? body.marsPath.trim() : "";
+    const assemblyInput = typeof body.assemblyInput === "string" ? body.assemblyInput : "";
     return sendJson(res, 200, await compileSource(
       body.source,
       body.enableCodegen === true,
       parserMode,
       body.runAssembly === true,
       marsPath,
+      assemblyInput,
     ));
   }
 
@@ -138,7 +137,12 @@ async function loadSamples() {
   return { groups };
 }
 
-async function compileSource(source, enableCodegen, parserMode, runAssembly, marsPath) {
+async function compileSource(source,
+                             enableCodegen,
+                             parserMode,
+                             runAssembly,
+                             marsPath,
+                             assemblyInput) {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), "snl-web-"));
   const sourcePath = path.join(tempRoot, "input.snl");
   const asmPath = path.join(tempRoot, "output.asm");
@@ -195,7 +199,7 @@ async function compileSource(source, enableCodegen, parserMode, runAssembly, mar
 
     if (enableCodegen && runAssembly && stages.at(-1)?.key === "mips" &&
         stages.at(-1)?.status === "success") {
-      const runResult = await runMars(marsPath, asmPath);
+      const runResult = await runMars(marsPath, asmPath, assemblyInput);
       runOutput = [runResult.stdout, runResult.stderr].filter(Boolean).join("\n");
       stages.push({
         key: "run",
@@ -214,7 +218,16 @@ async function compileSource(source, enableCodegen, parserMode, runAssembly, mar
   }
 }
 
-async function runMars(marsPath, asmPath) {
+async function runMars(marsPath, asmPath, assemblyInput) {
+  if (!marsPath) {
+    return {
+      stdout: "",
+      stderr: "file error: MARS jar path is required\n",
+      exitCode: 2,
+      timedOut: false,
+    };
+  }
+
   try {
     await access(marsPath);
   } catch {
@@ -226,18 +239,18 @@ async function runMars(marsPath, asmPath) {
     };
   }
 
-  return runProcess(javaBin, ["-jar", marsPath, "nc", asmPath], projectRoot);
+  return runProcess(javaBin, ["-jar", marsPath, "nc", asmPath], projectRoot, assemblyInput);
 }
 
 function runCompiler(args) {
   return runProcess(compilerPath, args, projectRoot);
 }
 
-function runProcess(command, args, cwd) {
+function runProcess(command, args, cwd, input = "") {
   return new Promise((resolve) => {
     const child = spawn(command, args, {
       cwd,
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: ["pipe", "pipe", "pipe"],
     });
 
     let stdout = "";
@@ -256,6 +269,7 @@ function runProcess(command, args, cwd) {
     child.stderr.on("data", (chunk) => {
       stderr += chunk;
     });
+    child.stdin.end(input ? `${input}\n` : "");
     child.on("error", (error) => {
       clearTimeout(timer);
       resolve({
