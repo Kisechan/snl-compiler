@@ -1,0 +1,15 @@
+program optimizedCodegen
+var integer x;
+begin
+    x := 2 + 3 * 4;
+    x := x + 0;
+    if 1 = 0 then
+        x := 99
+    else
+        x := x
+    fi;
+    while 0 < 0 do
+        x := x + 1
+    endwh;
+    write(x)
+end.

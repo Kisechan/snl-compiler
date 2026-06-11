@@ -3,6 +3,7 @@
 #include "type.h"
 
 #include <cctype>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <utility>
@@ -368,6 +369,12 @@ void MipsGenerator::emit_statement(const AstNode& statement) {
             return;
         }
 
+        const std::optional<int> condition = constant_value(*statement.children[0]);
+        if (condition) {
+            emit_statement_list(*statement.children[*condition ? 1 : 2]);
+            return;
+        }
+
         const std::string else_label = new_label("else");
         const std::string end_label = new_label("endif");
         emit_expression(*statement.children[0]);
@@ -383,6 +390,11 @@ void MipsGenerator::emit_statement(const AstNode& statement) {
     if (statement.detail == "While") {
         if (statement.children.size() < 2) {
             emit_error(statement.location, "malformed while statement");
+            return;
+        }
+
+        const std::optional<int> condition = constant_value(*statement.children[0]);
+        if (condition && *condition == 0) {
             return;
         }
 
@@ -420,6 +432,12 @@ void MipsGenerator::emit_statement(const AstNode& statement) {
 }
 
 void MipsGenerator::emit_expression(const AstNode& expression) {
+    const std::optional<int> folded = constant_value(expression);
+    if (folded) {
+        emit_line("    li $t0, " + std::to_string(*folded));
+        return;
+    }
+
     if (starts_with(expression.detail, "Const '")) {
         const int value = expression.detail.size() >= 9
                               ? static_cast<unsigned char>(expression.detail[7])
@@ -434,6 +452,10 @@ void MipsGenerator::emit_expression(const AstNode& expression) {
     }
 
     if (starts_with(expression.detail, "Op ")) {
+        if (emit_simplified_expression(expression)) {
+            return;
+        }
+
         if (expression.children.size() < 2) {
             emit_error(expression.location,
                        "operator expression '" + expression.detail + "' is missing operands");

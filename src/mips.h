@@ -4,6 +4,7 @@
 #include "diagnostic.h"
 #include "symbol_table.h"
 
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>

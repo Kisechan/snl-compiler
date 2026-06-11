@@ -14,23 +14,24 @@ const defaultCompilerPath = process.platform === "win32"
   ? path.join(projectRoot, "build", "Debug", "snlc.exe")
   : path.join(projectRoot, "build", "snlc");
 const compilerPath = process.env.SNLC_BIN || defaultCompilerPath;
+const javaBin = process.env.JAVA_BIN || "/opt/homebrew/opt/openjdk/bin/java";
 const host = process.env.HOST || "127.0.0.1";
 const port = Number(process.env.PORT || 5173);
 const timeoutMs = 5000;
 
 const sampleGroups = [
-  { id: "valid", label: "正确样例" },
-  { id: "lexical_errors", label: "词法错误" },
-  { id: "syntax_errors", label: "语法错误" },
-  { id: "semantic_errors", label: "语义错误" },
-  { id: "mips", label: "MIPS 生成" },
+  { id: "valid", label: "Valid Programs" },
+  { id: "lexical_errors", label: "Lexical Errors" },
+  { id: "syntax_errors", label: "Syntax Errors" },
+  { id: "semantic_errors", label: "Semantic Errors" },
+  { id: "mips", label: "MIPS Codegen" },
 ];
 
 const stageOrder = [
   { key: "tokens", name: "Lexical", args: (sourcePath) => ["--tokens", sourcePath] },
-  { key: "ast", name: "Syntax", args: (sourcePath) => ["--ast", sourcePath] },
-  { key: "semantic", name: "Semantic", args: (sourcePath) => ["--semantic", sourcePath] },
-  { key: "mips", name: "Codegen", args: (sourcePath, asmPath) => ["--mips", sourcePath, "-o", asmPath] },
+  { key: "ast", name: "Syntax", args: (sourcePath, _asmPath, parserArg) => ["--ast", parserArg, sourcePath] },
+  { key: "semantic", name: "Semantic", args: (sourcePath, _asmPath, parserArg) => ["--semantic", parserArg, sourcePath] },
+  { key: "mips", name: "Codegen", args: (sourcePath, asmPath, parserArg) => ["--mips", parserArg, sourcePath, "-o", asmPath] },
 ];
 
 const mimeTypes = {
@@ -81,7 +82,17 @@ async function handleRequest(req, res) {
         message: "Expected JSON body: { source: string }",
       });
     }
-    return sendJson(res, 200, await compileSource(body.source, body.enableCodegen === true));
+    const parserMode = body.parserMode === "ll1" ? "ll1" : "recursive";
+    const marsPath = typeof body.marsPath === "string" ? body.marsPath.trim() : "";
+    const assemblyInput = typeof body.assemblyInput === "string" ? body.assemblyInput : "";
+    return sendJson(res, 200, await compileSource(
+      body.source,
+      body.enableCodegen === true,
+      parserMode,
+      body.runAssembly === true,
+      marsPath,
+      assemblyInput,
+    ));
   }
 
   if (req.method !== "GET" && req.method !== "HEAD") {
@@ -126,13 +137,20 @@ async function loadSamples() {
   return { groups };
 }
 
-async function compileSource(source, enableCodegen) {
+async function compileSource(source,
+                             enableCodegen,
+                             parserMode,
+                             runAssembly,
+                             marsPath,
+                             assemblyInput) {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), "snl-web-"));
   const sourcePath = path.join(tempRoot, "input.snl");
   const asmPath = path.join(tempRoot, "output.asm");
   const stages = [];
   const diagnostics = [];
   let mips = "";
+  let runOutput = "";
+  const parserArg = parserMode === "ll1" ? "--ll1" : "--recursive";
 
   try {
     await writeFile(sourcePath, source, "utf8");
@@ -143,7 +161,7 @@ async function compileSource(source, enableCodegen) {
 
     for (let index = 0; index < enabledStages.length; index += 1) {
       const stage = enabledStages[index];
-      const result = await runCompiler(stage.args(sourcePath, asmPath));
+      const result = await runCompiler(stage.args(sourcePath, asmPath, parserArg));
       const stageDiagnostics = parseDiagnostics(result.stderr);
       diagnostics.push(...stageDiagnostics);
 
@@ -179,17 +197,60 @@ async function compileSource(source, enableCodegen) {
       }
     }
 
-    return { stages, diagnostics, mips };
+    if (enableCodegen && runAssembly && stages.at(-1)?.key === "mips" &&
+        stages.at(-1)?.status === "success") {
+      const runResult = await runMars(marsPath, asmPath, assemblyInput);
+      runOutput = [runResult.stdout, runResult.stderr].filter(Boolean).join("\n");
+      stages.push({
+        key: "run",
+        name: "Run",
+        status: runResult.exitCode === 0 ? "success" : "error",
+        stdout: runResult.stdout,
+        stderr: runResult.stderr,
+        exitCode: runResult.exitCode,
+        timedOut: runResult.timedOut,
+      });
+    }
+
+    return { stages, diagnostics, mips, runOutput };
   } finally {
     await rm(tempRoot, { recursive: true, force: true });
   }
 }
 
+async function runMars(marsPath, asmPath, assemblyInput) {
+  if (!marsPath) {
+    return {
+      stdout: "",
+      stderr: "file error: MARS jar path is required\n",
+      exitCode: 2,
+      timedOut: false,
+    };
+  }
+
+  try {
+    await access(marsPath);
+  } catch {
+    return {
+      stdout: "",
+      stderr: `file error: cannot read MARS jar '${marsPath}'\n`,
+      exitCode: 2,
+      timedOut: false,
+    };
+  }
+
+  return runProcess(javaBin, ["-jar", marsPath, "nc", asmPath], projectRoot, assemblyInput);
+}
+
 function runCompiler(args) {
+  return runProcess(compilerPath, args, projectRoot);
+}
+
+function runProcess(command, args, cwd, input = "") {
   return new Promise((resolve) => {
-    const child = spawn(compilerPath, args, {
-      cwd: projectRoot,
-      stdio: ["ignore", "pipe", "pipe"],
+    const child = spawn(command, args, {
+      cwd,
+      stdio: ["pipe", "pipe", "pipe"],
     });
 
     let stdout = "";
@@ -208,6 +269,7 @@ function runCompiler(args) {
     child.stderr.on("data", (chunk) => {
       stderr += chunk;
     });
+    child.stdin.end(input ? `${input}\n` : "");
     child.on("error", (error) => {
       clearTimeout(timer);
       resolve({

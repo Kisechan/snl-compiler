@@ -56,8 +56,8 @@
 
 已确定的重要规则：
 
-- 语法分析只实现递归下降方法。
-- 不实现 LL(1) 表驱动语法分析，除非用户后续重新要求。
+- 语法分析支持递归下降和 LL(1) 表驱动两种入口。
+- 默认语法分析器为递归下降，命令行可通过 `--ll1` 选择 LL(1) 表驱动语法分析。
 - `return` 按 PPT 规则处理，解析为 `return(expr)`；虽然 PDF 补充材料中提取到的是 `ReturnStm ::= RETURN`。
 - Token 命名保持标准区分：
   - `LPAREN` / `RPAREN` 表示 `(` 和 `)`。
@@ -192,6 +192,353 @@ snlc --all input.snl
 未解决问题或后续工作：
 
 - 暂无。
+
+### 2026-06-10 - MARS 控件默认值、默认样例、端口清理与 read_add 输入
+
+用户请求：
+
+- 将默认 MARS jar 路径改为空字符串。
+- 非 MIPS samples 隐藏 MARS 路径、运行汇编勾选框等控件。
+- 默认 sample 改为 `valid/basic_tokens.snl`。
+- 右侧默认标签页改为 Tokens。
+- 后续开发默认使用 5173 端口。
+- 找到并关闭 5173 到 5175 的运行进程。
+- 修复 `read_add` 示例运行 MARS 时缺少输入导致异常的问题。
+- 为输入数据增加专门选项框。
+
+预计修改的文件或模块：
+
+- `AGENTS.MD`
+- `web/server.mjs`
+- `web/public/index.html`
+- `web/public/app.js`
+- `web/public/styles.css`
+
+实现步骤：
+
+- 关闭监听 5173、5174、5175 的旧 Node 服务进程。
+- 前端默认选择 `valid/basic_tokens.snl`，默认 active tab 为 Tokens。
+- MARS 路径输入默认空字符串。
+- 非 MIPS 样例隐藏 MARS 路径、输入数据和运行汇编控件。
+- 增加 MARS stdin 输入框，并在 `read_add` 示例默认填入整数输入。
+- 服务端运行 MARS 时把输入数据写入子进程 stdin。
+- MARS 路径为空且用户启用运行汇编时返回明确 Run 阶段错误。
+- 使用 5173 启动并验证页面、API、Run 输出。
+
+测试或验证方式：
+
+- 运行端口清理检查。
+- 运行 `node --check web/server.mjs`。
+- 运行 `node --check web/public/app.js`。
+- 运行 `git diff --check`。
+- 通过 API 测试 `read_add` 输入数据运行结果。
+- 通过浏览器验证默认 sample、默认 Tokens tab、MIPS 控件显隐和 Run 输出。
+
+重要假设：
+
+- `read_add` 的输入数据用单个整数即可，默认使用 `7`，预期输出 `12`。
+- MARS stdin 使用换行分隔输入值。
+
+实际修改内容：
+
+- 已关闭 5173、5174、5175 上的旧 Node 服务进程。
+- 已将 Web 工作台重新启动到默认端口 `http://127.0.0.1:5173`。
+- 已将默认 sample 改为 `valid/basic_tokens.snl`。
+- 已保持右侧默认标签页为 Tokens。
+- 已将 MARS jar 路径默认值改为空字符串。
+- 已将 MARS jar 路径、assembly input、Run assembly 控件设为 MIPS-only。
+- 已为 `mips/read_add.snl` 默认填入 assembly input `7`。
+- 已将服务端 MARS 运行改为通过 stdin 写入 assembly input。
+- 已在 MARS 路径为空且启用 Run assembly 时返回明确 Run 阶段错误。
+- 已更新 README 中 MARS 运行说明。
+
+已运行的测试或检查：
+
+- 已运行端口检查，确认 5173、5174、5175 旧进程已关闭。
+- 已运行 `node --check web/server.mjs`，通过。
+- 已运行 `node --check web/public/app.js`，通过。
+- 已运行 `git diff --check`，通过。
+- 已通过 API 验证 `read_add` 携带 `assemblyInput: "7"` 和 MARS jar 路径时，Run 阶段输出 `12`。
+- 已通过 API 验证 MARS jar 路径为空时，Run 阶段输出 `file error: MARS jar path is required`。
+- 已通过浏览器验证默认 sample 为 `valid/basic_tokens.snl`。
+- 已通过浏览器验证默认 active tab 为 Tokens。
+- 已通过浏览器验证非 MIPS sample 隐藏 MARS 路径、assembly input 和 Run assembly 控件。
+- 已通过浏览器验证切换到 `mips/read_add.snl` 后 MIPS-only 控件显示，MARS 路径为空，assembly input 默认 `7`。
+- 已通过浏览器 390px 宽度检查移动端默认状态，无横向溢出。
+- 已检查浏览器 console error/warn 日志为空。
+- 已确认当前监听端口只有 5173。
+
+未解决问题或后续工作：
+
+- 浏览器自动化运行时无法通过 Playwright `fill/type` 输入长路径，实际运行链路已通过 API 覆盖，页面控件显隐和默认值已通过浏览器覆盖。
+
+### 2026-06-10 - MARS 汇编运行测试与前端接入
+
+用户请求：
+
+- 使用 `/Users/kisechan/Developer/Projects/snl/Mars for Compile 2022.jar` 测试运行 MIPS 汇编代码。
+- 在前端接入运行汇编代码功能。
+- 前端可设定 MARS jar 路径。
+
+预计修改的文件或模块：
+
+- `AGENTS.MD`
+- `web/server.mjs`
+- `web/public/index.html`
+- `web/public/app.js`
+- `web/public/styles.css`
+
+实现步骤：
+
+- 确认 Java 和 MARS jar 可运行。
+- 用 `snlc --mips` 生成测试汇编。
+- 调用 MARS jar 运行生成的汇编，确认输出。
+- 服务端 `POST /api/compile` 支持 `runAssembly` 和 `marsPath`。
+- 前端工具栏增加 MARS jar 路径输入和运行汇编开关。
+- 输出区域增加 Run 标签页，展示汇编运行 stdout/stderr。
+
+测试或验证方式：
+
+- 运行 CMake 构建。
+- 运行 MARS 命令行测试。
+- 运行 `node --check web/server.mjs` 和 `node --check web/public/app.js`。
+- 通过 HTTP API 测试 `runAssembly: true`。
+- 通过浏览器验证 MIPS 示例可生成并运行汇编。
+
+重要假设：
+
+- MARS 以 `java -jar <marsPath> nc <asmPath>` 的命令行形式运行。
+- 汇编运行只在 MIPS 示例启用。
+
+实际修改内容：
+
+- 已在 `web/server.mjs` 中增加 MARS 运行阶段。
+- 已支持 `runAssembly` 和 `marsPath` 请求参数。
+- 已使用 `java -jar <marsPath> nc <asmPath>` 运行生成的汇编。
+- 已在服务端返回 `runOutput`，并把 Run 阶段追加到 stages。
+- 已在 `web/public/index.html` 增加 MARS jar 路径输入和“运行汇编”开关。
+- 已在 `web/public/app.js` 增加 Run 标签页、Run 流水线阶段、请求参数和默认结果页切换。
+- 已在 `web/public/styles.css` 调整工具栏控件布局，支持新增路径输入和移动端显示。
+- 已更新 `README.md`，说明前端可选择语法分析器、填写 MARS jar 路径并查看 Run 输出。
+
+已运行的测试或检查：
+
+- 已运行 `cmake --build build`，构建成功。
+- 已运行 `./build/snlc --mips tests/mips/while_sum.snl --ll1 -o build/mars_while_sum.asm`，生成汇编成功。
+- 已运行 `/opt/homebrew/opt/openjdk/bin/java -jar "/Users/kisechan/Developer/Projects/snl/Mars for Compile 2022.jar" nc build/mars_while_sum.asm`，输出 `15`。
+- 已运行 `node --check web/server.mjs`，通过。
+- 已运行 `node --check web/public/app.js`，通过。
+- 已运行 `git diff --check`，通过。
+- 已启动新版 Web 工作台到 `http://127.0.0.1:5174`。
+- 已通过 HTTP API 验证 `runAssembly: true` 和 MARS jar 路径，Run 阶段成功输出 `15`。
+- 已通过浏览器选择 LL(1)、填写 MARS jar 路径并运行默认 MIPS 示例，Run 标签页显示 `15`。
+- 已检查浏览器控制台错误日志为空。
+- 已用 390px 宽度检查移动端布局，新增控件和 Run 按钮均可见且在工具栏范围内。
+
+未解决问题或后续工作：
+
+- 当前 Java 默认路径为 `/opt/homebrew/opt/openjdk/bin/java`，可通过 `JAVA_BIN` 环境变量覆盖。
+
+### 2026-06-10 - Workbench 英文化、流水线布局调整与 Run 输出修复
+
+用户请求：
+
+- 将编译流水线状态放到 `SNL Compiler Workbench` 标题下方，占一整行。
+- 将所有中文提示和页面文字改成英文版本，并让界面更协调。
+- Debug 当前 Run 标签显示“暂无输出”的问题。
+
+预计修改的文件或模块：
+
+- `AGENTS.MD`
+- `web/server.mjs`
+- `web/public/index.html`
+- `web/public/app.js`
+- `web/public/styles.css`
+
+实现步骤：
+
+- 将 header 布局改为标题区在上、流水线状态条在下。
+- 将 HTML、JS、服务端样例分组标签中的中文文案改为英文。
+- 调整 pipeline 和工具栏样式，使五阶段状态在整行内协调显示。
+- 修复 Run 标签输出：优先读取 Run stage，缺失时使用 `runOutput` 兜底。
+- 用浏览器验证 MIPS 示例运行后 Run 标签显示 MARS 输出。
+
+测试或验证方式：
+
+- 运行 `node --check web/server.mjs`。
+- 运行 `node --check web/public/app.js`。
+- 运行 `git diff --check`。
+- 启动 Web 服务并通过浏览器验证桌面和移动端布局。
+- 点击 Run，确认 Run 标签显示 MARS 输出。
+
+重要假设：
+
+- 页面面向英文演示环境。
+- Run 输出来自 MARS stdout/stderr，空输出时显示英文空状态。
+
+实际修改内容：
+
+- 已将 header 改为单列布局：标题和说明在上，pipeline 状态条在下方独占整行。
+- 已将前端页面文案、aria label、空状态、错误提示、样例分组标签改为英文。
+- 已将 pipeline 调整为整行自适应布局，五阶段状态可在桌面横向排列。
+- 已修复 Run 面板输出逻辑：优先显示 Run stage 输出，缺失 stage 时用 `runOutput` 兜底。
+- 已调整桌面和移动端工具栏布局，MARS 路径输入不再挤压或横向溢出。
+
+已运行的测试或检查：
+
+- 已运行 `node --check web/server.mjs`，通过。
+- 已运行 `node --check web/public/app.js`，通过。
+- 已运行 `git diff --check`，通过。
+- 已启动当前版本 Web 工作台到 `http://127.0.0.1:5175`。
+- 已通过浏览器验证 pipeline 位于标题下方并占整行。
+- 已通过浏览器验证页面可见文本无中文残留。
+- 已通过浏览器选择 LL(1) 并运行默认 MIPS 示例，Run 标签显示 `15`。
+- 已确认 Run 面板不再显示 `No output available.`。
+- 已检查浏览器 console error/warn 日志为空。
+- 已用 390px 宽度验证移动端布局，MARS 路径输入、运行开关和按钮均可见且无横向溢出。
+
+未解决问题或后续工作：
+
+- 暂无。
+
+### 2026-06-10 - LL(1) 批量测试与前端接入
+
+用户请求：
+
+- 重新编译项目。
+- 使用 `tests/` 文件夹下的 SNL 代码测试 LL(1) parser。
+- 将 LL(1) parser 功能接入前端页面。
+
+预计修改的文件或模块：
+
+- `AGENTS.MD`
+- `web/server.mjs`
+- `web/public/index.html`
+- `web/public/app.js`
+- `web/public/styles.css`
+
+实现步骤：
+
+- 重新运行 CMake 构建。
+- 批量运行 `tests/valid`、`tests/syntax_errors`、`tests/semantic_errors`、`tests/mips` 下样例的 LL(1) 路径。
+- 服务端 `POST /api/compile` 接收 parser mode 参数。
+- 前端工具栏增加语法分析器选择控件。
+- 前端运行编译时提交当前 parser mode。
+- 本地启动 Web 工作台并验证页面选择 LL(1) 后各阶段调用成功。
+
+测试或验证方式：
+
+- 运行 `cmake --build build`。
+- 运行 CLI 批量测试脚本覆盖 `tests/` 下样例。
+- 运行 `node --check web/server.mjs` 和 `node --check web/public/app.js`。
+- 启动 `node web/server.mjs`。
+- 通过 HTTP API 测试 `parserMode: "ll1"`。
+- 打开本地页面验证选择控件和 LL(1) 编译结果。
+
+重要假设：
+
+- 前端默认语法分析器保持 `recursive`。
+- LL(1) 模式通过服务端传参调用现有 `snlc --ll1`。
+
+实际修改内容：
+
+- 已在 `web/server.mjs` 中为 `POST /api/compile` 增加 `parserMode` 参数处理。
+- 已将 Syntax、Semantic、Codegen 阶段命令扩展为按 parser mode 传入 `--recursive` 或 `--ll1`。
+- 已在 `web/public/index.html` 的工具栏增加“语法分析器”选择框。
+- 已在 `web/public/app.js` 中保存 parser mode 状态，并随编译请求发送到服务端。
+- 已在阶段摘要中显示当前语法分析器。
+- 已在 `web/public/styles.css` 中调整工具栏布局，支持桌面并排和移动端纵向排列。
+
+已运行的测试或检查：
+
+- 已运行 `cmake --build build`，构建成功。
+- 已批量运行 `tests/valid/*.snl` 的 `--ast --ll1`，均通过。
+- 已批量运行 `tests/syntax_errors/*.snl` 的 `--ast --ll1`，均返回语法错误。
+- 已批量运行 `tests/semantic_errors/*.snl` 的 `--semantic --ll1`，均返回语义错误。
+- 已批量运行 `tests/mips/*.snl` 的 `--mips --ll1`，均生成非空 MIPS 汇编。
+- 已批量运行 `tests/lexical_errors/*.snl` 的 `--ast --ll1`，均返回词法错误。
+- 已运行 `node --check web/server.mjs`，通过。
+- 已运行 `node --check web/public/app.js`，通过。
+- 已运行 `git diff --check`，通过。
+- 已启动 `node web/server.mjs`，访问地址为 `http://127.0.0.1:5173`。
+- 已通过 HTTP API 请求验证 `parserMode: "ll1"`，返回 Lexical、Syntax、Semantic 成功。
+- 已通过浏览器选择 LL(1) 并运行默认 MIPS 示例，返回 Lexical、Syntax、Semantic、Codegen 全部 success，MIPS 输出可见。
+- 已检查浏览器控制台错误日志为空。
+- 已用 390px 宽度检查移动端布局，示例选择、语法分析器选择和运行按钮均可见且在工具栏范围内。
+
+未解决问题或后续工作：
+
+- 暂无。
+
+### 2026-06-10 - 增加 LL(1) 语法分析器选择
+
+用户请求：
+
+- 添加 LL(1) 语法分析功能。
+- 支持用 `--ll1` 或 `--recursive` 选择语法分析器。
+- `--recursive` 作为默认语法分析器。
+
+预计修改的文件或模块：
+
+- `AGENTS.MD`
+- `CMakeLists.txt`
+- `README.md`
+- `src/main.cpp`
+- `src/parser.h`
+- `src/ll1_parser.h`
+- `src/ll1_parser.cpp`
+
+实现步骤：
+
+- 将现有递归下降解析器保留为默认路径。
+- 新增 `LL1Parser`，通过 LL(1) 表驱动方式验证 Token 序列。
+- LL(1) 解析成功后复用现有递归下降解析器构造 AST，保证后续语义分析和 MIPS 生成使用相同 AST 结构。
+- 在命令行入口解析 `--recursive` 和 `--ll1` 可选参数。
+- 更新用法说明和 README。
+
+测试或验证方式：
+
+- 运行 CMake 构建。
+- 运行 `--ast` 默认路径。
+- 运行 `--ast ... --recursive`。
+- 运行 `--ast ... --ll1`。
+- 运行 `--semantic ... --ll1`。
+- 运行语法错误样例，确认 `--ll1` 输出语法错误。
+- 运行 `--mips ... --ll1 -o ...`。
+
+重要假设：
+
+- LL(1) 模式优先用于展示表驱动语法分析流程。
+- AST 构造复用现有递归下降解析器，避免语义分析和代码生成路径重复维护。
+
+实际修改内容：
+
+- 已新增 `src/ll1_parser.h` 和 `src/ll1_parser.cpp`，实现 LL(1) 表驱动语法验证。
+- 已将 `src/ll1_parser.cpp` 加入 CMake 构建。
+- 已在 `src/main.cpp` 中接入 `--recursive` 和 `--ll1` 可选参数。
+- 已保持 `--recursive` 为默认语法分析器。
+- 已支持 `--ast`、`--semantic`、`--mips` 三个阶段选择 LL(1) 语法分析器。
+- 已更新 `README.md` 的命令行示例。
+
+已运行的测试或检查：
+
+- 已运行 `cmake --build build`，构建成功。
+- 已运行 `./build/snlc --ast tests/valid/full_syntax.snl`，退出码为 0。
+- 已运行 `./build/snlc --ast tests/valid/full_syntax.snl --recursive`，退出码为 0。
+- 已运行 `./build/snlc --ast tests/valid/full_syntax.snl --ll1`，退出码为 0。
+- 已运行 `./build/snlc --ast --ll1 tests/valid/basic_tokens.snl`，退出码为 0。
+- 已运行 `./build/snlc --semantic tests/valid/semantic_ok.snl --ll1`，退出码为 0。
+- 已运行 `./build/snlc --semantic --ll1 tests/valid/semantic_nested_ok.snl`，退出码为 0。
+- 已运行 `./build/snlc --ast tests/syntax_errors/missing_semi.snl --ll1`，返回语法错误并退出码为 1。
+- 已运行 `./build/snlc --mips tests/mips/while_sum.snl --ll1 -o build/while_sum_ll1.asm`，退出码为 0，并生成 MIPS 汇编。
+- 已批量运行 `tests/valid/*.snl` 的 `--ast --ll1`，均通过。
+- 已批量运行 `tests/semantic_errors/*.snl` 的 `--semantic --ll1`，均返回语义错误。
+- 已批量运行 `tests/syntax_errors/*.snl` 的 `--ast --ll1`，均返回语法错误。
+- 已运行 `git diff --check`，未发现空白错误。
+
+未解决问题或后续工作：
+
+- LL(1) 模式当前负责表驱动语法验证，AST 构造继续复用递归下降解析器。
 
 ### 2026-06-10 - Web 演示：MIPS/Codegen 只对 MIPS 示例显示
 

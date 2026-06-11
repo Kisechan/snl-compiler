@@ -59,16 +59,40 @@ build/Debug/snlc.exe
 ./build/snlc --ast tests/valid/full_syntax.snl
 ```
 
+显式使用递归下降语法分析器：
+
+```bash
+./build/snlc --ast tests/valid/full_syntax.snl --recursive
+```
+
+使用 LL(1) 表驱动语法分析器：
+
+```bash
+./build/snlc --ast tests/valid/full_syntax.snl --ll1
+```
+
 运行语义分析并输出符号表摘要：
 
 ```bash
 ./build/snlc --semantic tests/valid/semantic_ok.snl
 ```
 
+语义分析也可以选择语法分析器：
+
+```bash
+./build/snlc --semantic tests/valid/semantic_ok.snl --ll1
+```
+
 生成 MIPS 汇编：
 
 ```bash
 ./build/snlc --mips tests/mips/while_sum.snl -o build/while_sum.asm
+```
+
+MIPS 生成同样支持 LL(1) 语法分析：
+
+```bash
+./build/snlc --mips tests/mips/while_sum.snl -o build/while_sum.asm --ll1
 ```
 
 ## 开启 Web 演示功能
@@ -101,9 +125,11 @@ http://127.0.0.1:5173
 页面功能：
 
 - 选择 `tests/` 下的 SNL 示例程序。
+- 选择递归下降或 LL(1) 语法分析器。
+- 为 MIPS 示例填写 MARS jar 路径和 assembly stdin input，并选择是否运行生成的汇编。
 - 编辑源码后点击 `Run`。
-- 查看 Lexical、Syntax、Semantic、Codegen 四个阶段状态。
-- 在 Tokens、AST、Semantic、MIPS、Diagnostics 标签页查看输出。
+- 查看 Lexical、Syntax、Semantic、Codegen、Run 阶段状态。
+- 在 Tokens、AST、Semantic、MIPS、Run、Diagnostics 标签页查看输出。
 - 错误样例会自动显示诊断信息，并高亮源码行。
 
 ## 关闭 Web 演示功能
@@ -134,6 +160,12 @@ HOST=0.0.0.0 node web/server.mjs
 
 ```bash
 SNLC_BIN=/absolute/path/to/snlc node web/server.mjs
+```
+
+指定 Java 可执行文件路径：
+
+```bash
+JAVA_BIN=/opt/homebrew/opt/openjdk/bin/java node web/server.mjs
 ```
 
 多配置生成器示例：
