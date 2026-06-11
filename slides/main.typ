@@ -240,20 +240,6 @@
   ],
 )
 
-#v(0.35in)
-#rect(
-  fill: white,
-  stroke: line,
-  radius: 6pt,
-  inset: 15pt,
-  width: 100%,
-  [
-    #text(fill: navy, weight: "bold")[默认选择]
-    #v(0.25em)
-    命令行中 `--recursive` 是默认语法分析器，适合作为 AST 构造器和完整编译流水线入口。
-  ],
-)
-
 == LL(1) 语法分析器
 
 #grid(
@@ -271,118 +257,118 @@
     #tag([与递归下降的关系], color: blue)
     - LL(1) 先验证输入是否满足预测分析表。
     - 验证通过后复用递归下降分析器生成 AST。
-    - 这样保证两种模式共用后续语义分析和代码生成。
-    - 用户可通过 `--ll1` 显式选择 LL(1) 模式。
+    - 两种模式共用后续语义分析和代码生成。
   ],
 )
 
 #v(0.32in)
 #flow(("输入 Token", "预测分析栈", "产生式选择", "匹配终结符", "复用 AST 构造"))
 
-== LL(1) 分析栈与预测表
-
-#grid(
-  columns: (0.9fr, 0.18fr, 1.05fr, 0.18fr, 1fr),
-  gutter: 0.16in,
-  [
-    #tag[输入流]
-    #v(0.18in)
-    #node([program], note: [当前 lookahead], color: accent, fill: accent.lighten(88%))
-    #v(0.08in)
-    #node([Id begin ... EOF], note: [剩余 Token], color: muted)
-  ],
-  arrow(label: [查表]),
-  [
-    #tag([预测分析栈], color: blue)
-    #v(0.13in)
-    #stack-cell([Program], color: blue, fill: blue.lighten(88%))
-    #stack-cell([EOF], color: muted)
-    #v(0.2in)
-    #text(fill: muted, size: 11.5pt)[栈顶是非终结符时，结合 lookahead 选择产生式。]
-  ],
-  arrow(label: [展开]),
-  [
-    #tag([产生式选择], color: green)
-    #v(0.13in)
-    #node([Program], note: [ProgramHead · DeclarePart · ProgramBody · Dot · EOF], color: green, fill: green.lighten(88%))
-    #v(0.2in)
-    #text(fill: muted, size: 11.5pt)[产生式逆序入栈，使最左符号先被处理。]
-  ],
-)
-
-#v(0.35in)
-#grid(
-  columns: (1fr, 1fr),
-  gutter: 0.25in,
-  [
-    #tag([终结符处理], color: accent)
-    - 栈顶为终结符时必须与当前 Token 相同。
-    - 匹配成功后输入向前移动。
-    - 不匹配时立即产生语法诊断。
-  ],
-  [
-    #tag([空产生式处理], color: green)
-    - 对可省略结构使用空产生式。
-    - 例如声明段、参数列表、表达式尾部。
-    - 空产生式不入栈，只表示当前非终结符推导完成。
-  ],
-)
-
-== LL(1) 在工程中的接入
-
-#grid(
-  columns: (1fr, 0.15fr, 1fr, 0.15fr, 1fr, 0.15fr, 1fr),
-  gutter: 0.12in,
-  node([命令行参数], note: [`--ll1` 或默认递归下降], color: accent),
-  arrow(),
-  node([Lexer], note: [生成统一 Token 序列], color: blue),
-  arrow(),
-  node([LL(1) 检查], note: [预测分析表验证语法], color: green),
-  arrow(),
-  node([AST 构造], note: [复用递归下降构造器], color: navy),
-)
-
-#v(0.4in)
-#grid(
-  columns: (1fr, 1fr, 1fr),
-  gutter: 0.25in,
-  card([入口选择], [主程序根据参数选择 Parser 或 LL1Parser，词法阶段完全复用。], color: accent),
-  card([职责拆分], [LL(1) 负责验证文法可接受性，递归下降负责构造统一 AST。], color: blue),
-  card([后续一致], [语义分析、符号表、MIPS 生成和优化不关心前端采用哪种语法分析器。], color: green),
-)
-
-== LL(1) 设计取舍
+== LL(1) 文法改写
 
 #grid(
   columns: (1fr, 1fr),
   gutter: 0.32in,
   [
-    #tag([保留表驱动特征], color: blue)
-    - 明确维护分析栈。
-    - 预测表以非终结符分支组织。
-    - 每个分支依据 lookahead 返回产生式。
-    - 错误信息可以指出期望非终结符或终结符。
+    #tag([左递归消除], color: accent)
+    - 原文法中 `Exp → Exp + Term` 和 `Term → Term * Factor` 存在直接左递归。
+    - LL(1) 无法处理左递归，必须改写为右递归 + 空产生式形式。
+    - 改写后展开的第一个符号不再是自身，消除死循环。
   ],
   [
-    #tag([避免重复 AST 逻辑], color: accent)
-    - 表驱动分析天然更适合“识别”而不是“构树”。
-    - 若在 LL(1) 中重新构树，会复制大量语义动作。
-    - 本项目采用“先验证，后复用构树”的折中方案。
-    - 两种模式输出同一 AST，降低后端维护成本。
+    #tag([改写后的等价文法], color: blue)
+    - `Exp → Term ExpTail`
+    - `ExpTail → + Term ExpTail | - Term ExpTail | ε`
+    - `Term → Factor TermTail`
+    - `TermTail → * Factor TermTail | / Factor TermTail | ε`
+    - `Factor → ( Exp ) | IntConst | CharConst | Id VariableTail`
   ],
 )
 
-#v(0.35in)
+#v(0.28in)
 #rect(
   fill: white,
   stroke: line,
   radius: 6pt,
-  inset: 15pt,
+  inset: 14pt,
   width: 100%,
   [
-    #text(fill: navy, weight: "bold")[适合展示的部分]
-    #v(0.25em)
-    LL(1) 模式最适合展示预测分析思想：栈顶符号、当前 lookahead、预测表项和产生式展开之间的对应关系。
+    #text(fill: navy, weight: "bold")[改写原则]
+    #v(0.2em)
+    引入尾递归符号（ExpTail / TermTail）将原左递归结构转为右递归。优先级由文法层次决定：Factor → Term → Exp，比较运算在 RelExp 层统一处理。
+  ],
+)
+
+== LL(1) 预测分析表
+
+#grid(
+  columns: (1fr, 1fr),
+  gutter: 0.32in,
+  [
+    #tag([实现方式], color: accent)
+    - 预测分析表没有使用二维数组，而是实现为一个 `switch-case` 函数 `find_production()`。
+    - 输入为当前非终结符 + lookahead Token 类型。
+    - 每个 `case` 分支按 lookahead 值返回对应的产生式右部。
+    - 找不到匹配时返回 `nullptr`，触发语法错误。
+  ],
+  [
+    #tag([设计考量], color: blue)
+    - switch-case 结构使预测关系一目了然，每个 case 即代表表中一项。
+    - C++ 的 static local 变量使产生式在首次匹配时构造，后续调用直接返回指针。
+    - 免去初始化大二维数组的代码，且编译期即可发现遗漏分支。
+  ],
+)
+
+#v(0.28in)
+#grid(
+  columns: (1fr, 0.16fr, 1fr),
+  gutter: 0.12in,
+  node([非终结符], note: [e.g., NT::Program], color: navy),
+  arrow(label: [lookup]),
+  node([产生式右部], note: [Symbol 序列], color: accent, fill: accent.lighten(88%)),
+)
+
+== LL(1) 核心算法
+
+#grid(
+  columns: (1fr, 1fr),
+  gutter: 0.32in,
+  [
+    #tag([数据结构], color: accent)
+    #v(0.15em)
+    ```cpp
+    struct Symbol {
+        bool terminal;
+        TokenType token;
+        NonTerminal non_terminal;
+    };
+    using Production = std::vector<Symbol>;
+    ```
+    - Symbol 统一表示终结符和非终结符，通过 `terminal` 字段区分。
+    - Production 即产生式右部的符号序列。
+  ],
+  [
+    #tag([核心循环: parse_table()], color: blue)
+    - 初始化栈：`[EOF, Program]`
+    - 循环：弹出栈顶 → 判断符号类型
+    - 终结符：匹配当前 Token，成功则前进；失败则报错
+    - 非终结符：查 `find_production()`，将右部逆序压入栈
+    - $epsilon$ 产生式：右部为空 vector，不压入任何符号
+    - 栈为空且 Token 已读完 → 成功
+  ],
+)
+
+#v(0.28in)
+#rect(
+  fill: white,
+  stroke: line,
+  radius: 6pt,
+  inset: 14pt,
+  width: 100%,
+  [
+    #text(fill: navy, weight: "bold")[模拟过程示例: `read(x)`]
+    #v(0.15em)
+    `[EOF, Program]` → `[EOF, ProgramHead, DeclarePart, ProgramBody, ., EOF]` → ... → `[..., Id, IdStatementTail]` 匹配 `read`? 否 → 展开 `Statement` → `Read ( Id )` → 匹配 `read`, `(`, `x`, `)` ✓
   ],
 )
 
@@ -395,16 +381,14 @@
     #image("语义分析器.png", height: 5.05in)
   ],
   [
-    #tag([实现位置], color: green)
-    #text(fill: muted, size: 14pt)[src/semantic.cpp, src/type.cpp]
-
-    #v(0.25in)
     - 以 AST 为输入，自顶向下处理声明和语句。
     - 建立基础类型、数组类型、记录类型、过程类型和别名类型。
     - 在表达式节点上写入语义类型、是否左值、符号编号和变量种类。
     - 对赋值、读写、条件、循环和过程调用执行静态检查。
+    #image("语义分析器说明.png", height: 45%)
   ],
 )
+
 
 == 符号表与作用域
 
@@ -628,7 +612,7 @@
   [
     #tag[已完成]
     - SNL 前端基础功能完整。
-    - 两种语法分析模式可切换。
+    - 两种语法分析模式均已实现。
     - 语义分析支持作用域、类型和调用检查。
     - 基础 MIPS 后端形成可运行闭环。
     - 简单优化减少目标代码冗余。
