@@ -1,0 +1,17 @@
+program recursiveSum
+var integer result;
+procedure sumTo(integer n; var integer output);
+var integer temp;
+begin
+    if n < 1 then
+        output := 0
+    else
+        sumTo(n - 1,temp);
+        output := temp + n
+    fi;
+    return(output)
+end
+begin
+    sumTo(5,result);
+    write(result)
+end.

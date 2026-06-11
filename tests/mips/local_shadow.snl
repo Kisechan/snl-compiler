@@ -1,0 +1,14 @@
+program localShadow
+var integer x;
+procedure showLocal();
+var integer x;
+begin
+    x := 7;
+    write(x);
+    return(x)
+end
+begin
+    x := 3;
+    showLocal();
+    write(x)
+end.

@@ -1,0 +1,19 @@
+program nestedNonlocal
+var integer x;
+procedure outer(integer seed; var integer output);
+var integer local;
+procedure inner();
+begin
+    local := seed + 2;
+    output := local;
+    return(output)
+end
+begin
+    inner();
+    return(output)
+end
+begin
+    x := 1;
+    outer(5,x);
+    write(x)
+end.

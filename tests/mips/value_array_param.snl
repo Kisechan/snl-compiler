@@ -1,0 +1,17 @@
+program valueArrayParam
+type pair = array[1..2] of integer;
+var pair nums;
+    integer result;
+procedure pick(pair input; var integer output);
+begin
+    output := input[2];
+    input[2] := 9;
+    return(output)
+end
+begin
+    nums[1] := 4;
+    nums[2] := 8;
+    pick(nums,result);
+    write(result);
+    write(nums[2])
+end.

@@ -674,3 +674,75 @@ snlc --all input.snl
 未解决问题或后续工作：
 
 - 暂无。
+
+### 2026-06-11 - 第六轮实现：完整 MIPS 栈式后端一次性扩展
+
+用户请求：
+
+- 按“完整 MIPS 后端一次性实现计划”实现。
+- 将当前只支持主程序全局变量的 MIPS 后端扩展到覆盖现有 lexer/parser/semantic 已支持的 SNL 子集。
+
+预计修改的文件或模块：
+
+- `AGENTS.MD`
+- `src/mips.h`
+- `src/mips.cpp`
+- `src/semantic.cpp`
+- `tests/mips/*.snl`
+- `文档/MIPS_栈帧与调用约定.md`
+
+实现步骤：
+
+- 重构 MIPS 生成器，扫描主程序和过程 AST，建立过程标签、作用域、父作用域和局部区元数据。
+- 设计并实现统一栈帧布局，保存旧 `$fp`、`$ra` 和静态链，使用 `$fp` 相对地址访问参数和局部变量。
+- 实现统一左值地址生成，支持全局变量、局部变量、值参数、`var` 参数、数组元素和记录字段。
+- 实现过程代码生成、过程调用、值参数传递、`var` 参数传地址、递归调用和嵌套过程静态链访问。
+- 扩展 `read/write`、赋值、表达式、`if/while`、`return(expr)` 的代码生成，使其使用统一寻址与调用约定。
+- 如语义阶段缺少后端必要绑定信息，补充内部语义属性，不改变 `--ast` 文本输出。
+- 新增覆盖局部变量、数组、记录、过程调用、嵌套过程、递归和 `var` 参数的 MIPS 样例。
+- 新增 MIPS 栈帧与调用约定文档。
+
+测试或验证方式：
+
+- 运行 `cmake --build build`。
+- 回归运行 `--tokens`、`--ast`、`--semantic` 正常样例。
+- 回归运行词法、语法、语义错误样例，确认仍返回非 0。
+- 对所有 `tests/mips/*.snl` 生成汇编。
+- 使用 MARS 对生成汇编执行汇编检查和模拟运行，核对输出。
+- 对需要输入的样例提供固定输入并核对输出。
+- 运行 `git diff --check`。
+
+重要假设：
+
+- “完整后端”指覆盖当前项目已实现语义分析能接受的 SNL 能力，不额外扩展语法或语义。
+- 后端仍不引入独立 IR，直接基于语义后的 AST 和符号表生成 MIPS。
+- 目标运行环境继续以 MARS 兼容 32 位 MIPS 为准。
+- SNL 过程无返回值，`return(expr)` 只计算表达式并提前返回当前过程。
+
+实际修改内容：
+
+- 已重构 `src/mips.h` 和 `src/mips.cpp`，新增过程元数据、栈帧信息、作用域到过程映射、过程符号到标签映射和当前过程上下文。
+- 已实现统一左值地址生成，支持全局变量、局部变量、值参数、`var` 参数、数组元素和记录字段。
+- 已实现过程代码生成、过程调用、值参数传递、复合值参数拷贝、`var` 参数传地址、递归调用和嵌套过程 static link。
+- 已扩展赋值、表达式、`read`、`write`、`if`、`while`、`return(expr)` 的 MIPS 生成，使其使用统一栈帧和寻址逻辑。
+- 已新增 MIPS 样例：局部变量遮蔽、记录内数组和 `var` 参数、数组值参数、递归求和、嵌套过程非局部访问。
+- 已新增 `文档/MIPS_栈帧与调用约定.md`，记录当前栈帧布局、参数传递、static link 和变量寻址规则。
+- 本轮未修改 `src/semantic.cpp`；现有语义属性和后端按作用域查找已足够支撑本轮代码生成。
+
+已运行的测试或检查：
+
+- 已运行 `cmake --build build`，构建成功，产物为 `build/Debug/snlc.exe`。
+- 已回归运行 `--tokens tests/valid/basic_tokens.snl`、`--ast tests/valid/full_syntax.snl`、`--semantic tests/valid/semantic_ok.snl`、`--semantic tests/valid/semantic_nested_ok.snl`，均退出码为 0。
+- 已批量运行 `tests/lexical_errors/*.snl`、`tests/syntax_errors/*.snl`、`tests/semantic_errors/*.snl`，均保持非 0 退出码。
+- 已对所有 `tests/mips/*.snl` 生成 `build/mips_tests/*.asm`，均成功。
+- 已使用 MARS 对所有生成的 MIPS 样例执行汇编检查，均通过。
+- 已使用 MARS 模拟运行基础样例：`basic_write` 输出 `14`，`char_write` 输出 `A`，`if_else` 输出 `10`，`while_sum` 输出 `15`，`read_add` 输入 `7` 输出 `12`。
+- 已使用 MARS 模拟运行新增复杂样例：`local_shadow` 输出 `73`，`record_array_var_param` 输出 `45Z`，`value_array_param` 输出 `88`，`recursive_sum` 输出 `15`，`nested_nonlocal` 输出 `7`。
+- 已验证 `tests/valid/semantic_ok.snl` 可生成并运行，输入 `5` 输出 `a`；`tests/valid/semantic_nested_ok.snl` 输出 `2`。
+- 已验证 `tests/valid/full_syntax.snl` 可生成 MIPS 并通过 MARS 汇编检查。
+- 已运行 `git diff --check`，未发现空白错误。
+
+未解决问题或后续工作：
+
+- 当前后端覆盖现有语法和语义阶段支持的主要 SNL 子集；如果后续语义阶段新增更多运算符或更复杂的记录嵌套字段，需要同步扩展 MIPS 地址生成。
+- 记录/数组整体比较没有作为演示用例纳入；当前推荐在语义阶段继续约束比较表达式面向标量类型。

@@ -1,0 +1,20 @@
+program recordArrayVarParam
+type pair = array[1..2] of integer;
+     box = record
+         array[1..2] of integer values;
+         char tag;
+     end;
+var box item;
+procedure fill(var box target; integer base);
+begin
+    target.values[1] := base;
+    target.values[2] := base + 1;
+    target.tag := 'Z';
+    return(target.values[2])
+end
+begin
+    fill(item,4);
+    write(item.values[1]);
+    write(item.values[2]);
+    write(item.tag)
+end.
