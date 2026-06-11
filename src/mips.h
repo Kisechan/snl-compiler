@@ -65,6 +65,7 @@ private:
     void emit_statement_list(const AstNode& list);
     void emit_statement(const AstNode& statement);
     void emit_expression(const AstNode& expression);
+    bool emit_simplified_expression(const AstNode& expression);
     void emit_address(const AstNode& expression);
     void emit_symbol_address(const Symbol& symbol);
     void emit_frame_pointer_for_scope(int target_scope_id, const std::string& target_register);
@@ -88,6 +89,8 @@ private:
     TypePtr type_for_expression(const AstNode& expression);
     TypePtr type_for_symbol(const Symbol& symbol) const;
     int size_for_type(TypePtr type) const;
+    std::optional<int> constant_value(const AstNode& expression) const;
+    bool same_storage(const AstNode& left, const AstNode& right) const;
     std::string label_for_symbol(const Symbol& symbol) const;
     std::string new_label(const std::string& prefix);
     static bool starts_with(const std::string& text, const std::string& prefix);

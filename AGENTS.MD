@@ -1093,3 +1093,62 @@ snlc --all input.snl
 
 - 当前后端覆盖现有语法和语义阶段支持的主要 SNL 子集；如果后续语义阶段新增更多运算符或更复杂的记录嵌套字段，需要同步扩展 MIPS 地址生成。
 - 记录/数组整体比较没有作为演示用例纳入；当前推荐在语义阶段继续约束比较表达式面向标量类型。
+
+### 2026-06-11 - Git 合并后代码生成冲突修复
+
+用户请求：
+
+- 当前 Git 与同学代码发生冲突。
+- 自己的提交信息为“完善代码生成”，因为没有先拉取同学代码改动，需要检查并处理两边代码生成相关改动，使“完善代码生成”和同学改动不冲突。
+
+预计修改的文件或模块：
+
+- `AGENTS.MD`
+- `src/mips.h`
+- `src/mips.cpp`
+
+实现步骤：
+
+- 检查 Git 状态、冲突标记和双方提交中代码生成相关改动。
+- 保留当前完整 MIPS 栈帧、过程调用、数组、记录和参数传递实现。
+- 将同学优化代码生成提交中仍被调用但合并丢失的辅助函数声明和定义补回当前 `MipsGenerator`。
+- 确保常量折叠、简单表达式优化与当前新版寻址/符号查找逻辑兼容。
+- 重新构建项目并运行 MIPS 样例，确认合并后代码生成路径可用。
+
+测试或验证方式：
+
+- 运行 `cmake --build build`。
+- 对 `tests/mips/*.snl` 运行 `snlc --mips` 生成汇编。
+- 运行 `git diff --check`。
+- 视情况运行基础 CLI 回归命令。
+
+重要假设：
+
+- 当前工作区没有未解决的文本冲突标记，问题主要是语义合并后缺失函数导致构建失败。
+- 同学提交的优化逻辑应以不削弱当前完整代码生成能力为前提接入。
+- 本次不重写代码生成整体结构，只修复合并遗漏并验证双方功能可以共存。
+
+实际修改内容：
+
+- 已确认当前工作区没有未解决的 Git 文本冲突，且没有残留 `<<<<<<<`、`=======`、`>>>>>>>` 冲突标记。
+- 已确认实际构建失败来自 `src/mips.cpp` 调用了合并后缺失的 `constant_value` 和 `emit_simplified_expression`。
+- 已在 `src/mips.h` 中补回 `emit_simplified_expression`、`constant_value`、`same_storage` 私有辅助函数声明。
+- 已在 `src/mips.cpp` 中补回常量折叠、简单表达式优化和同一存储位置判断实现。
+- 已保留当前完整 MIPS 栈帧、过程调用、数组、记录、`var` 参数、递归和嵌套过程实现，没有回退到同学提交中的早期全局变量-only 代码生成路径。
+
+已运行的测试或检查：
+
+- 已运行 `cmake --build build`，构建成功，产物为 `build/Debug/snlc.exe`。
+- 已对 `tests/mips/*.snl` 全量运行 `snlc --mips`，全部成功生成非空汇编到 `build/merge_mips_tests/`。
+- 已运行 `snlc --tokens tests/valid/basic_tokens.snl`，退出码为 0。
+- 已运行 `snlc --semantic tests/valid/semantic_ok.snl`，退出码为 0。
+- 已批量运行 `tests/lexical_errors/*.snl`、`tests/syntax_errors/*.snl`、`tests/semantic_errors/*.snl`，均保持非 0 退出码。
+- 已运行 `git diff --check`，未发现空白错误。
+- 已用 MARS 运行 `optimized_codegen.asm`，输出 `14`。
+- 已用 MARS 运行 `recursive_sum.asm`，输出 `15`。
+- 已用 MARS 运行 `record_array_var_param.asm`，输出 `45Z`。
+- 已用 MARS 运行 `read_add.asm`，输入 `7`，输出 `12`。
+
+未解决问题或后续工作：
+
+- 当前本地 `main` 相对 `origin/main` 仍显示 ahead 3；本次只修复合并后构建失败和代码生成兼容问题，尚未执行提交或推送。

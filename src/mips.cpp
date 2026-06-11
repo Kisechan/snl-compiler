@@ -505,6 +505,61 @@ void MipsGenerator::emit_expression(const AstNode& expression) {
     emit_line("    lw $t0, 0($t0)");
 }
 
+bool MipsGenerator::emit_simplified_expression(const AstNode& expression) {
+    if (!starts_with(expression.detail, "Op ") || expression.children.size() < 2) {
+        return false;
+    }
+
+    const std::string op = expression.detail.substr(3);
+    const AstNode& left = *expression.children[0];
+    const AstNode& right = *expression.children[1];
+    const std::optional<int> left_constant = constant_value(left);
+    const std::optional<int> right_constant = constant_value(right);
+
+    if (op == "+" && right_constant && *right_constant == 0) {
+        emit_expression(left);
+        return true;
+    }
+    if (op == "+" && left_constant && *left_constant == 0) {
+        emit_expression(right);
+        return true;
+    }
+    if (op == "-" && right_constant && *right_constant == 0) {
+        emit_expression(left);
+        return true;
+    }
+    if (op == "*" && right_constant && *right_constant == 1) {
+        emit_expression(left);
+        return true;
+    }
+    if (op == "*" && left_constant && *left_constant == 1) {
+        emit_expression(right);
+        return true;
+    }
+    if (op == "*" &&
+        ((right_constant && *right_constant == 0) ||
+         (left_constant && *left_constant == 0))) {
+        emit_line("    li $t0, 0");
+        return true;
+    }
+    if (op == "/" && right_constant && *right_constant == 1) {
+        emit_expression(left);
+        return true;
+    }
+    if (same_storage(left, right)) {
+        if (op == "=") {
+            emit_line("    li $t0, 1");
+            return true;
+        }
+        if (op == "<") {
+            emit_line("    li $t0, 0");
+            return true;
+        }
+    }
+
+    return false;
+}
+
 void MipsGenerator::emit_address(const AstNode& expression) {
     const std::vector<std::string> words = split_words(expression.detail);
     if (words.size() < 2) {
@@ -914,6 +969,72 @@ TypePtr MipsGenerator::type_for_symbol(const Symbol& symbol) const {
 int MipsGenerator::size_for_type(TypePtr type) const {
     type = resolve_alias(std::move(type));
     return type ? type->size : 0;
+}
+
+std::optional<int> MipsGenerator::constant_value(const AstNode& expression) const {
+    if (starts_with(expression.detail, "Const '")) {
+        if (expression.detail.size() >= 9) {
+            return static_cast<unsigned char>(expression.detail[7]);
+        }
+        return 0;
+    }
+
+    if (starts_with(expression.detail, "Const ")) {
+        try {
+            return std::stoi(expression.detail.substr(6));
+        } catch (...) {
+            return std::nullopt;
+        }
+    }
+
+    if (!starts_with(expression.detail, "Op ") || expression.children.size() < 2) {
+        return std::nullopt;
+    }
+
+    const std::optional<int> left = constant_value(*expression.children[0]);
+    const std::optional<int> right = constant_value(*expression.children[1]);
+    if (!left || !right) {
+        return std::nullopt;
+    }
+
+    const std::string op = expression.detail.substr(3);
+    if (op == "+") {
+        return *left + *right;
+    }
+    if (op == "-") {
+        return *left - *right;
+    }
+    if (op == "*") {
+        return *left * *right;
+    }
+    if (op == "/") {
+        if (*right == 0) {
+            return std::nullopt;
+        }
+        return *left / *right;
+    }
+    if (op == "<") {
+        return *left < *right ? 1 : 0;
+    }
+    if (op == "=") {
+        return *left == *right ? 1 : 0;
+    }
+    return std::nullopt;
+}
+
+bool MipsGenerator::same_storage(const AstNode& left, const AstNode& right) const {
+    const std::vector<std::string> left_words = split_words(left.detail);
+    const std::vector<std::string> right_words = split_words(right.detail);
+    if (left_words.size() < 2 || right_words.size() < 2 ||
+        left_words[1] != "IdV" || right_words[1] != "IdV") {
+        return false;
+    }
+
+    if (left.semantic_symbol_id >= 0 && right.semantic_symbol_id >= 0) {
+        return left.semantic_symbol_id == right.semantic_symbol_id;
+    }
+
+    return left_words.front() == right_words.front();
 }
 
 std::string MipsGenerator::label_for_symbol(const Symbol& symbol) const {
